@@ -11,38 +11,38 @@
   <main class="container">
     <section class="hero">
       <div>
-        <p class="eyebrow">Embedded Control Simulation</p>
-        <h1>Smart Fish Feeder Digital Twin</h1>
+        <p class="eyebrow">IoT Telemetry Dashboard</p>
+        <h1>Smart Fish Feeder Digital Twin v2</h1>
         <p class="subtitle">
-          A software dashboard mock for monitoring a temperature-controlled automated liquid fish-feeder system.
+          Real API dashboard for simulated ESP32 telemetry, temperature logs, pump status, and rule-based alerts.
         </p>
       </div>
-      <div class="status-pill" id="systemHealth">System Normal</div>
+      <div class="status-pill" id="systemHealth">Waiting for API</div>
     </section>
 
     <section class="grid">
       <article class="card">
         <h2>Reservoir Temperature</h2>
-        <p class="metric"><span id="temperature">4.6</span>°C</p>
+        <p class="metric"><span id="temperature">--</span>°C</p>
         <p class="hint">Target range: 3.0°C – 5.0°C</p>
       </article>
 
       <article class="card">
         <h2>Cooling</h2>
-        <p class="metric" id="coolingStatus">OFF</p>
+        <p class="metric" id="coolingStatus">--</p>
         <p class="hint">MOSFET-driven Peltier module</p>
       </article>
 
       <article class="card">
         <h2>Pump State</h2>
-        <p class="metric" id="pumpStatus">IDLE</p>
-        <p class="hint">Forward dosing + reverse cleaning</p>
+        <p class="metric" id="pumpStatus">--</p>
+        <p class="hint">IDLE / FEEDING / CLEANING / ERROR</p>
       </article>
 
       <article class="card">
-        <h2>Next Feeding</h2>
-        <p class="metric" id="nextFeeding">19:16</p>
-        <p class="hint">RTC-based schedule</p>
+        <h2>Last Seen</h2>
+        <p class="metric small" id="lastSeen">--</p>
+        <p class="hint">Latest telemetry timestamp</p>
       </article>
     </section>
 
@@ -50,19 +50,16 @@
       <div class="panel-header">
         <div>
           <h2>Temperature History</h2>
-          <p>Mock telemetry stream simulating DS18B20 sensor readings.</p>
+          <p>Fetched from FastAPI `/telemetry` endpoint backed by SQLite.</p>
         </div>
-        <div class="actions">
-          <button id="feedBtn">Manual Feed</button>
-          <button id="cleanBtn">Clean Pump</button>
-        </div>
+        <div class="api-url">API: <code>http://127.0.0.1:8000</code></div>
       </div>
       <canvas id="tempChart"></canvas>
     </section>
 
     <section class="panel">
-      <h2>Event Log</h2>
-      <ul id="eventLog"></ul>
+      <h2>Rule-Based Alerts</h2>
+      <ul id="alertLog"></ul>
     </section>
   </main>
 

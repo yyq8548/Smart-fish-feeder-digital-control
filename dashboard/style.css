@@ -41,7 +41,7 @@ h1, h2, p {
 
 h1 {
   margin-bottom: 12px;
-  font-size: clamp(32px, 5vw, 56px);
+  font-size: clamp(32px, 5vw, 52px);
 }
 
 .subtitle {
@@ -56,8 +56,8 @@ h1 {
   white-space: nowrap;
   padding: 12px 18px;
   border-radius: 999px;
-  background: #e8f6ee;
-  color: #1f7a43;
+  background: #f4f4f5;
+  color: #3f4652;
   font-weight: 700;
 }
 
@@ -89,6 +89,10 @@ h1 {
   margin-bottom: 8px;
 }
 
+.metric.small {
+  font-size: 22px;
+}
+
 .hint {
   color: #7a8699;
   margin-bottom: 0;
@@ -113,38 +117,24 @@ h1 {
   margin-bottom: 0;
 }
 
-.actions {
-  display: flex;
-  gap: 12px;
+.api-url {
+  color: #627086;
+  font-size: 14px;
 }
 
-button {
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-weight: 700;
-  cursor: pointer;
-  background: #1e6da8;
-  color: white;
-}
-
-button:nth-child(2) {
-  background: #39495e;
-}
-
-#eventLog {
+#alertLog {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-#eventLog li {
+#alertLog li {
   padding: 12px 0;
   border-bottom: 1px solid #edf1f5;
   color: #3c4656;
 }
 
-#eventLog li:last-child {
+#alertLog li:last-child {
   border-bottom: 0;
 }
 

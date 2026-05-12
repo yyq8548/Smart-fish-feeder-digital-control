@@ -1,124 +1,169 @@
-# Smart Fish Feeder Digital Twin
+# Smart Fish Feeder Digital Twin v2
 
-An Arduino-based embedded control simulation for a temperature-controlled automated liquid fish-feeder system.  
-The original hardware prototype used a Peltier-cooled reservoir, DS18B20 temperature sensing, DS1307 RTC scheduling, L293D motor control, and a peristaltic pump with reverse-cleaning support.
+A software-oriented upgrade of an Arduino-based automated liquid fish-feeder system.
 
-This upgraded version turns the hardware prototype into a software-oriented project with:
+The original project used:
 
-- Refactored Arduino firmware
-- Online Wokwi simulation support
-- Event-driven control logic
-- State-machine documentation
-- Web dashboard mock for feeder telemetry visualization
+- DS18B20 temperature sensor
+- DS1307 RTC module
+- L293D motor driver
+- Peristaltic pump
+- MOSFET-driven Peltier cooling
+- Reverse-pump cleaning logic
+- Wokwi simulation
+
+The v2 upgrade adds:
+
+- FastAPI backend
+- SQLite database
+- SQLAlchemy persistence layer
+- Mock ESP32 telemetry client
+- Web dashboard consuming real API data
+- Rule-based alerts for abnormal temperature and pump errors
 
 ---
 
-## Features
+## System Architecture
 
-- Temperature monitoring using DS18B20
-- RTC-based scheduled feeding using DS1307
-- Manual feeding button support
-- Pump forward control for liquid dosing
-- Pump reverse control for tube cleaning
-- MOSFET-driven Peltier cooling control
-- Serial telemetry and event logs
-- Web dashboard mock for temperature, cooling, pump state, and event history
+```text
+Mock ESP32 Client / Wokwi Simulation
+              |
+              | POST /telemetry
+              v
+        FastAPI Backend
+              |
+              v
+        SQLite Database
+              |
+              v
+        Web Dashboard
+```
 
 ---
 
 ## Project Structure
 
 ```text
-smart_fish_feeder_digital_twin/
-├── firmware/
-│   └── sketch.ino
-├── simulation/
-│   ├── diagram.json
-│   └── libraries.txt
+smart_fish_feeder_digital_twin_v2/
+├── backend/
+│   ├── main.py
+│   ├── requirements.txt
+│   └── README.md
+├── mock_device/
+│   ├── mock_esp32_client.py
+│   ├── requirements.txt
+│   └── README.md
 ├── dashboard/
 │   ├── index.html
 │   ├── style.css
-│   └── app.js
+│   ├── app.js
+│   └── README.md
 ├── docs/
-│   ├── architecture.md
-│   ├── state_machine.md
-│   └── wiring.md
-└── README.md
+│   ├── architecture_v2.md
+│   ├── api_design.md
+│   └── resume_bullets.md
+├── firmware/
+│   └── README.md
+├── simulation/
+│   └── README.md
+└── .gitignore
 ```
 
 ---
 
-## Embedded Control Logic
+## Quick Start on Windows PowerShell
 
-The firmware is organized around a simple state machine:
+### 1. Start the backend
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Backend URL:
 
 ```text
-IDLE -> CHECK_TEMPERATURE -> FEEDING -> CLEANING -> LOGGING -> IDLE
+http://127.0.0.1:8000
 ```
 
-The control loop continuously checks current time, temperature, and manual button input.  
-When feeding is triggered, the pump runs forward for dosing and then reverses to clean the tube.
+API docs:
 
----
+```text
+http://127.0.0.1:8000/docs
+```
 
-## Wokwi Simulation
+### 2. Start the mock ESP32 client
 
-Use the files in `simulation/` and `firmware/` to recreate the Arduino Mega simulation in Wokwi.
+Open a second PowerShell window:
 
-### Simulated Components
+```powershell
+cd mock_device
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python mock_esp32_client.py
+```
 
-| Component | Simulated Role |
-|---|---|
-| Arduino Mega | Main controller |
-| DS18B20 | Temperature sensor |
-| DS1307 RTC | Feeding schedule clock |
-| Push button | Manual feed |
-| Blue LED | Peltier cooling |
-| Yellow LED | Pump enable |
-| Green LED | Pump forward feeding |
-| Red LED | Pump reverse cleaning |
+### 3. Open the dashboard
 
----
-
-## Dashboard Mock
-
-The `dashboard/` folder contains a lightweight web dashboard that simulates device telemetry.
-
-To run it locally, open:
+Open this file in your browser:
 
 ```text
 dashboard/index.html
 ```
 
-The dashboard displays:
+The dashboard will fetch data from:
 
-- Current reservoir temperature
-- Cooling status
-- Pump state
-- Next feeding time
-- Mock temperature history chart
-- Manual feed and pump-cleaning controls
-- Event logs
+```text
+http://127.0.0.1:8000
+```
 
 ---
 
-## Resume Version
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/telemetry` | Ingest simulated device telemetry |
+| GET | `/telemetry` | Return recent telemetry history |
+| GET | `/device-status` | Return latest device status |
+| GET | `/alerts` | Return warning and critical alerts |
+
+---
+
+## Example Telemetry Payload
+
+```json
+{
+  "temperature_c": 4.6,
+  "cooling_on": false,
+  "pump_state": "IDLE",
+  "event_type": null
+}
+```
+
+---
+
+## Resume Bullets
 
 ```text
 Smart Fish Feeder Digital Twin | Personal Project
 Atlanta, GA | Apr 2023 – Jan 2024
 
-- Built an Arduino-based automated liquid fish-feeding system and reconstructed it as a Wokwi simulation to demonstrate embedded control logic online.
-- Programmed modular firmware integrating DS18B20 temperature sensing, DS1307 RTC scheduling, L293D pump control, and MOSFET-driven Peltier cooling for timed dosing and reverse-pump cleaning.
-- Developed a dashboard mock to visualize feeder status, temperature history, pump state, and scheduled feeding events.
+- Reconstructed an Arduino-based liquid fish-feeder as a Wokwi simulation with modular firmware for temperature monitoring, RTC-based scheduled dosing, Peltier cooling, and reverse-pump cleaning.
+- Built a FastAPI backend with SQLite and SQLAlchemy to ingest simulated ESP32 telemetry, persist temperature and feeding logs, and expose device-status APIs.
+- Developed a web dashboard that consumes live API data to visualize reservoir temperature, pump state, feeding events, and rule-based alerts.
 ```
 
 ---
 
 ## Future Improvements
 
-- Connect ESP32 telemetry to a real backend API
-- Store temperature and feeding logs in Firebase, Supabase, or PostgreSQL
-- Add notification alerts for failed feeding or abnormal temperature
-- Add camera-based fish activity detection
-- Add adaptive feeding based on feeding history and water quality
+- Replace mock client with a real ESP32 Wi-Fi client
+- Add authentication for device telemetry ingestion
+- Add WebSocket support for real-time dashboard updates
+- Deploy backend with Docker
+- Add PostgreSQL for production deployment

@@ -1,102 +1,21 @@
+const API_BASE = "http://127.0.0.1:8000";
+
 const temperatureEl = document.getElementById("temperature");
 const coolingStatusEl = document.getElementById("coolingStatus");
 const pumpStatusEl = document.getElementById("pumpStatus");
-const eventLogEl = document.getElementById("eventLog");
-const feedBtn = document.getElementById("feedBtn");
-const cleanBtn = document.getElementById("cleanBtn");
+const lastSeenEl = document.getElementById("lastSeen");
 const systemHealthEl = document.getElementById("systemHealth");
-
-const TEMP_LOW = 3.0;
-const TEMP_HIGH = 5.0;
-
-let currentTemp = 4.4;
-let pumpState = "IDLE";
-
-const labels = [];
-const tempData = [];
-
-function nowLabel() {
-  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
-
-function addLog(message) {
-  const li = document.createElement("li");
-  li.textContent = `[${nowLabel()}] ${message}`;
-  eventLogEl.prepend(li);
-
-  while (eventLogEl.children.length > 8) {
-    eventLogEl.removeChild(eventLogEl.lastChild);
-  }
-}
-
-function simulateTemperature() {
-  const drift = (Math.random() - 0.5) * 0.35;
-  currentTemp = Math.max(2.4, Math.min(6.2, currentTemp + drift));
-
-  if (currentTemp > TEMP_HIGH) {
-    coolingStatusEl.textContent = "ON";
-    systemHealthEl.textContent = "Cooling Active";
-    systemHealthEl.style.background = "#e8f1fb";
-    systemHealthEl.style.color = "#1e6da8";
-    currentTemp -= 0.25;
-  } else if (currentTemp < TEMP_LOW) {
-    coolingStatusEl.textContent = "OFF";
-    systemHealthEl.textContent = "Below Target";
-    systemHealthEl.style.background = "#fff6e5";
-    systemHealthEl.style.color = "#9a6300";
-  } else {
-    coolingStatusEl.textContent = "OFF";
-    systemHealthEl.textContent = "System Normal";
-    systemHealthEl.style.background = "#e8f6ee";
-    systemHealthEl.style.color = "#1f7a43";
-  }
-
-  temperatureEl.textContent = currentTemp.toFixed(1);
-
-  labels.push(nowLabel());
-  tempData.push(Number(currentTemp.toFixed(2)));
-
-  if (labels.length > 20) {
-    labels.shift();
-    tempData.shift();
-  }
-
-  chart.update();
-}
-
-function setPumpState(state, durationMs) {
-  pumpState = state;
-  pumpStatusEl.textContent = state;
-  addLog(`Pump state changed to ${state}`);
-
-  if (durationMs) {
-    setTimeout(() => {
-      pumpState = "IDLE";
-      pumpStatusEl.textContent = "IDLE";
-      addLog("Pump returned to IDLE");
-    }, durationMs);
-  }
-}
-
-feedBtn.addEventListener("click", () => {
-  setPumpState("FEEDING", 3000);
-  addLog("Manual feed command triggered");
-});
-
-cleanBtn.addEventListener("click", () => {
-  setPumpState("CLEANING", 3000);
-  addLog("Reverse-pump cleaning triggered");
-});
+const alertLogEl = document.getElementById("alertLog");
 
 const ctx = document.getElementById("tempChart");
 const chart = new Chart(ctx, {
   type: "line",
   data: {
-    labels,
+    labels: [],
     datasets: [
       {
         label: "Reservoir Temperature (°C)",
-        data: tempData,
+        data: [],
         tension: 0.35
       }
     ]
@@ -112,5 +31,95 @@ const chart = new Chart(ctx, {
   }
 });
 
-addLog("Dashboard initialized");
-setInterval(simulateTemperature, 1200);
+function formatTime(value) {
+  if (!value) return "--";
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+}
+
+function setHealth(level, message) {
+  systemHealthEl.textContent = message || level;
+
+  if (level === "critical") {
+    systemHealthEl.style.background = "#fde8e8";
+    systemHealthEl.style.color = "#9b1c1c";
+  } else if (level === "warning") {
+    systemHealthEl.style.background = "#fff6e5";
+    systemHealthEl.style.color = "#9a6300";
+  } else if (level === "normal") {
+    systemHealthEl.style.background = "#e8f6ee";
+    systemHealthEl.style.color = "#1f7a43";
+  } else {
+    systemHealthEl.style.background = "#f4f4f5";
+    systemHealthEl.style.color = "#3f4652";
+  }
+}
+
+async function fetchStatus() {
+  const response = await fetch(`${API_BASE}/device-status`);
+  if (!response.ok) throw new Error("Failed to fetch device status");
+  return response.json();
+}
+
+async function fetchTelemetry() {
+  const response = await fetch(`${API_BASE}/telemetry?limit=30`);
+  if (!response.ok) throw new Error("Failed to fetch telemetry");
+  return response.json();
+}
+
+async function fetchAlerts() {
+  const response = await fetch(`${API_BASE}/alerts?limit=8`);
+  if (!response.ok) throw new Error("Failed to fetch alerts");
+  return response.json();
+}
+
+async function refreshDashboard() {
+  try {
+    const [status, telemetry, alerts] = await Promise.all([
+      fetchStatus(),
+      fetchTelemetry(),
+      fetchAlerts()
+    ]);
+
+    if (status.temperature_c === null) {
+      temperatureEl.textContent = "--";
+      coolingStatusEl.textContent = "--";
+      pumpStatusEl.textContent = "--";
+      lastSeenEl.textContent = "--";
+      setHealth("unknown", "Waiting for telemetry");
+    } else {
+      temperatureEl.textContent = Number(status.temperature_c).toFixed(1);
+      coolingStatusEl.textContent = status.cooling_on ? "ON" : "OFF";
+      pumpStatusEl.textContent = status.pump_state;
+      lastSeenEl.textContent = formatTime(status.last_seen);
+      setHealth(status.alert_level, status.alert_message || "System Normal");
+    }
+
+    chart.data.labels = telemetry.map((item) => formatTime(item.created_at));
+    chart.data.datasets[0].data = telemetry.map((item) => item.temperature_c);
+    chart.update();
+
+    alertLogEl.innerHTML = "";
+
+    if (alerts.length === 0) {
+      const li = document.createElement("li");
+      li.textContent = "No alerts yet.";
+      alertLogEl.appendChild(li);
+    } else {
+      for (const alert of alerts) {
+        const li = document.createElement("li");
+        li.textContent = `[${formatTime(alert.created_at)}] ${alert.alert_level.toUpperCase()}: ${alert.alert_message}`;
+        alertLogEl.appendChild(li);
+      }
+    }
+  } catch (error) {
+    setHealth("unknown", "API Offline");
+    console.error(error);
+  }
+}
+
+refreshDashboard();
+setInterval(refreshDashboard, 2000);
