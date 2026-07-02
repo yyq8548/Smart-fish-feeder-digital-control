@@ -23,6 +23,7 @@ The physical prototype shows the original automated liquid fish-feeder system wi
 ### Dashboard Demo
 
 ![Dashboard showing live telemetry](docs/images/dashboard.png)
+![Dashboard showing live telemetry](docs/images/alerts.png)
 
 ### FastAPI Backend
 
