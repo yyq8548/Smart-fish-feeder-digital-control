@@ -29,7 +29,7 @@ services:
     ports:
       - "1883:1883"
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "127.0.0.1", "-t", "$SYS/broker/version", "-C", "1", "-W", "3"]
+      test: ["CMD", "mosquitto_sub", "-h", "127.0.0.1", "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
       interval: 10s
       timeout: 5s
       retries: 5
