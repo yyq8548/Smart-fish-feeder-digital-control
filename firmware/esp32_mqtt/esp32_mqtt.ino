@@ -1171,6 +1171,16 @@ int daysInMonth(int year, int month) {
   return days[month - 1];
 }
 
+int64_t daysSinceUnixEpoch(int year, unsigned int month, unsigned int day) {
+  year -= month <= 2;
+  const int era = (year >= 0 ? year : year - 399) / 400;
+  const unsigned int yearOfEra = static_cast<unsigned int>(year - era * 400);
+  const int shiftedMonth = static_cast<int>(month) + (month > 2 ? -3 : 9);
+  const unsigned int dayOfYear = static_cast<unsigned int>((153 * shiftedMonth + 2) / 5) + day - 1;
+  const unsigned int dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear;
+  return static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(dayOfEra) - 719468;
+}
+
 bool parseUtcTimestamp(const char *value, time_t &parsedTime) {
   if (value == nullptr) {
     return false;
@@ -1216,24 +1226,16 @@ bool parseUtcTimestamp(const char *value, time_t &parsedTime) {
     return false;
   }
 
-  struct tm utcTime = {};
-  utcTime.tm_year = year - 1900;
-  utcTime.tm_mon = month - 1;
-  utcTime.tm_mday = day;
-  utcTime.tm_hour = hour;
-  utcTime.tm_min = minute;
-  utcTime.tm_sec = second;
-  utcTime.tm_isdst = 0;
-  parsedTime = timegm(&utcTime);
-  if (parsedTime < 0) {
+  const int64_t epochSeconds = daysSinceUnixEpoch(year, month, day) * 86400 + hour * 3600 + minute * 60 + second;
+  parsedTime = static_cast<time_t>(epochSeconds);
+  if (static_cast<int64_t>(parsedTime) != epochSeconds) {
     return false;
   }
 
   struct tm normalized = {};
   gmtime_r(&parsedTime, &normalized);
-  return normalized.tm_year == utcTime.tm_year && normalized.tm_mon == utcTime.tm_mon &&
-         normalized.tm_mday == utcTime.tm_mday && normalized.tm_hour == utcTime.tm_hour &&
-         normalized.tm_min == utcTime.tm_min && normalized.tm_sec == utcTime.tm_sec;
+  return normalized.tm_year == year - 1900 && normalized.tm_mon == month - 1 && normalized.tm_mday == day &&
+         normalized.tm_hour == hour && normalized.tm_min == minute && normalized.tm_sec == second;
 }
 
 bool verifyCommandSignature(
