@@ -56,8 +56,12 @@ steps:
   # Completion produces a signed command result on MQTT and returns all GPIOs
   # to idle. Wait for the one-time serial event before checking the final pins;
   # delaying first could miss the event and leave the scenario waiting forever.
-  # The browser independently waits for the result in the dashboard.
+  # Keep the simulation alive through the actual MQTT publish (the completion
+  # line is emitted just before the result is queued), then allow broker
+  # delivery before the browser independently verifies the dashboard result.
   - wait-serial: 'completed: feeding_and_cleaning_completed'
+  - wait-serial: 'command-results <-'
+  - delay: 1000ms
   - expect-pin:
       part-id: esp
       pin: D33
