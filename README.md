@@ -6,7 +6,10 @@
 ![ESP32](https://img.shields.io/badge/device-ESP32-blue)
 ![MQTT TLS](https://img.shields.io/badge/MQTT-TLS%201.2%2B-success)
 
-An online control board for monitoring and operating a physical ESP32 fish feeder from a browser. It combines a responsive dashboard, FastAPI backend, persistent database, authenticated MQTT broker, ESP32 firmware, automated testing, and a production Docker deployment.
+Keep your fish well-fed with fresh liquid food, even when you’re away.
+Whether you’re going on vacation, need multiple scheduled feedings each day, or have fish that prefer liquid food over pellets, the Smart Liquid Fish Feeder makes care easier. It keeps liquid food fresh below 40°F, dispenses meals on your schedule, and automatically reverses the pump after feeding to help clean the line and prevent leftover food from spoiling inside the tube. Feed smarter, reduce waste, and give your fish consistent care anytime.
+
+This is the online control board for the smart fish feeder. It combines a responsive dashboard, FastAPI backend, persistent database, authenticated MQTT broker, ESP32 firmware, automated testing, and a production Docker deployment.
 
 ## Live website
 
