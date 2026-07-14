@@ -17,7 +17,85 @@ def test_operator_login_and_protected_identity(client: TestClient, operator_head
     me = client.get("/users/me", headers=operator_headers)
     assert me.status_code == 200
     assert me.json()["username"] == "test-admin"
+    assert me.json()["role"] == "operator"
     assert client.get("/users/me", headers={"Authorization": "Bearer invalid"}).status_code == 401
+
+
+def test_public_demo_is_synthetic_and_isolated(client: TestClient, demo_headers: dict[str, str]) -> None:
+    from app.database import SessionLocal
+    from app.models import DeviceCommand
+    from sqlalchemy import func, select
+
+    me = client.get("/users/me", headers=demo_headers)
+    assert me.status_code == 200
+    assert me.json()["role"] == "demo"
+
+    devices = client.get("/devices", headers=demo_headers).json()
+    assert [device["device_uid"] for device in devices] == ["demo-feeder-001"]
+    assert devices[0]["id"] == -1
+
+    status = client.get("/device-status?device_uid=demo-feeder-001", headers=demo_headers).json()
+    assert status["online"] is True
+    assert status["pump_state"] == "IDLE"
+    telemetry = client.get("/telemetry?device_uid=demo-feeder-001", headers=demo_headers).json()
+    assert len(telemetry) >= 10
+    assert max(item["temperature_c"] for item in telemetry) == 5.6
+    alerts = client.get("/alerts?device_uid=demo-feeder-001", headers=demo_headers).json()
+    assert alerts[0]["device_id"] == -1
+    assert "Sample alert" in alerts[0]["message"]
+    assert len(client.get("/devices/demo-feeder-001/commands", headers=demo_headers).json()) >= 3
+
+    simulated = client.post(
+        "/devices/demo-feeder-001/commands",
+        json={
+            "idempotency_key": "public-demo-feed",
+            "command_type": "FEED_NOW",
+            "payload": {"duration_ms": 1000},
+        },
+        headers=demo_headers,
+    )
+    assert simulated.status_code == 201
+    assert simulated.json()["status"] == "COMPLETED"
+    assert simulated.json()["device_id"] == -1
+    assert "demo_feeding" in simulated.json()["result"]
+
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).select_from(DeviceCommand)) == 0
+
+    for path in (
+        "/device-status?device_uid=feeder-001",
+        "/telemetry?device_uid=feeder-001",
+        "/alerts?device_uid=feeder-001",
+        "/devices/feeder-001/commands",
+    ):
+        assert client.get(path, headers=demo_headers).status_code == 404
+
+
+def test_public_demo_cannot_modify_production_resources(client: TestClient, demo_headers: dict[str, str]) -> None:
+    denied_requests = (
+        client.post(
+            "/devices",
+            json={"device_uid": "attacker-device", "name": "Blocked"},
+            headers=demo_headers,
+        ),
+        client.post("/devices/feeder-001/rotate-key", headers=demo_headers),
+        client.post(
+            "/devices/feeder-001/schedules",
+            json={"name": "Blocked", "hour": 9, "minute": 0},
+            headers=demo_headers,
+        ),
+        client.patch("/schedules/1", json={"enabled": False}, headers=demo_headers),
+        client.delete("/schedules/1", headers=demo_headers),
+        client.post("/alerts/1/acknowledge", headers=demo_headers),
+        client.post("/reliability/scan", headers=demo_headers),
+    )
+    assert {response.status_code for response in denied_requests} == {403}
+    blocked_command = client.post(
+        "/devices/feeder-001/commands",
+        json={"idempotency_key": "blocked-real-feed", "command_type": "FEED_NOW", "payload": {}},
+        headers=demo_headers,
+    )
+    assert blocked_command.status_code == 404
 
 
 def test_device_provisioning_returns_key_once(client: TestClient, operator_headers: dict[str, str]) -> None:
@@ -146,7 +224,7 @@ def test_concurrent_telemetry_idempotency_race_is_never_a_server_error(
                         concurrent_db.commit()
                 original_flush()
 
-            endpoint_db.flush = flush_after_concurrent_insert  # type: ignore[method-assign]
+            endpoint_db.flush = flush_after_concurrent_insert  # type: ignore[method-assign,assignment]
 
             def override_db():  # type: ignore[no-untyped-def]
                 yield endpoint_db

@@ -27,6 +27,7 @@ def test_alembic_upgrade_creates_platform_schema(tmp_path: Path) -> None:
         "device_commands",
     } <= tables
     assert "expires_at" in {column["name"] for column in inspector.get_columns("device_commands")}
+    assert "role" in {column["name"] for column in inspector.get_columns("users")}
 
 
 def test_alembic_upgrades_unversioned_v3_database(tmp_path: Path) -> None:
@@ -72,6 +73,7 @@ def test_alembic_upgrades_unversioned_v3_database(tmp_path: Path) -> None:
     assert {"payload_hash", "sequence_number", "recorded_at", "sensor_status"} <= telemetry_columns.keys()
     assert telemetry_columns["temperature_c"]["nullable"] is True
     assert "expires_at" in {column["name"] for column in inspector.get_columns("device_commands")}
+    assert "role" in {column["name"] for column in inspector.get_columns("users")}
     with engine.connect() as connection:
         assert connection.execute(text("SELECT sequence_number FROM telemetry WHERE id = 1")).scalar_one() == 1
         state = connection.execute(text("SELECT last_sequence_number, last_seen_at FROM devices WHERE id = 1")).one()
@@ -119,6 +121,7 @@ def test_expiry_migration_invalidates_predeadline_nonterminal_commands(tmp_path:
 
     command.upgrade(config, "head")
     assert "expires_at" in {column["name"] for column in inspect(engine).get_columns("device_commands")}
+    assert "role" in {column["name"] for column in inspect(engine).get_columns("users")}
     with engine.connect() as connection:
         rows = connection.execute(text("SELECT status, result, completed_at FROM device_commands ORDER BY id")).all()
     assert [row.status for row in rows] == ["EXPIRED", "EXPIRED"]

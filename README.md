@@ -14,7 +14,14 @@ The dashboard is not a disconnected mockup. A control request becomes a durable 
 
 **Control board:** [https://feeder.smartfishfeeder.org](https://feeder.smartfishfeeder.org)
 
-The public website requires an operator account. Production usernames, passwords, device credentials, and signing secrets are intentionally not stored in this repository.
+The website includes a public, isolated demo with realistic sample telemetry and simulated device controls:
+
+```text
+username: demo
+password: smartfishdemo
+```
+
+Select **Try demo** on the sign-in panel for one-click access. The demo account cannot view production devices or telemetry, provision hardware, rotate credentials, modify schedules, acknowledge production alerts, run reliability jobs, or send commands to the physical ESP32. Production usernames, passwords, device credentials, and signing secrets remain private.
 
 | Service | Address | Purpose |
 | --- | --- | --- |
@@ -34,8 +41,8 @@ The dashboard shows the selected feeder's temperature, cooling output, pump stat
 ### 1. Sign in
 
 1. Open [the live control board](https://feeder.smartfishfeeder.org).
-2. Enter the operator username and password supplied by the system owner.
-3. Select **Sign in**.
+2. Select **Try demo** for the public simulator, or enter private operator credentials supplied by the system owner.
+3. Select **Sign in** when using manually entered credentials.
 4. Confirm that the header changes from **Sign In Required** to the current system state.
 
 The browser exchanges the credentials for a short-lived access token. The token is kept only in the current browser tab and is removed when the operator signs out.
@@ -278,8 +285,8 @@ GitHub Actions runs the following on every pull request:
 
 - Ruff formatting and linting
 - Strict mypy type checking
-- 66 Python backend, MQTT transport, and Wokwi contract tests
-- 20 dashboard tests covering live, empty, and failed API states
+- 68 Python backend, MQTT transport, and Wokwi contract tests
+- 21 dashboard tests covering live, demo, empty, and failed API states
 - Browser-driven dashboard-to-Wokwi closed-loop verification
 - Python and JavaScript dependency vulnerability audits
 - Plaintext and verified-TLS ESP32 firmware compilation
@@ -287,7 +294,7 @@ GitHub Actions runs the following on every pull request:
 - Development and production Docker configuration validation
 - Complete Docker Compose build and end-to-end smoke test
 
-Current measured coverage is 91.57% for Python and 94.63% line coverage for the dashboard.
+Current measured coverage is 91.15% for Python and 94.77% line coverage for the dashboard.
 
 ## Main APIs
 
@@ -323,4 +330,3 @@ docker-compose.production.yml  HTTPS and MQTT/TLS production stack
 - [Original physical feeder prototype](https://drive.google.com/file/d/1-BNHRS8WrIlX6UmlVeAYz3xfRProdbw3/view?usp=sharing)
 - [Original Arduino/Wokwi simulation](https://wokwi.com/projects/468425567572330497)
 - [ESP32 MQTT simulation instructions](simulation/esp32-mqtt/README.md)
-
