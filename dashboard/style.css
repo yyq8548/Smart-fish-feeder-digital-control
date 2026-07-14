@@ -178,6 +178,38 @@ h3 {
   gap: 12px;
 }
 
+.demo-access {
+  display: flex;
+  grid-column: 2;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #b8d9d2;
+  border-radius: 12px;
+  background: #eef8f5;
+}
+
+.demo-access .label {
+  color: #245e55;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.demo-access p {
+  margin: 4px 0 0;
+  color: #526d68;
+  font-size: 13px;
+}
+
+.demo-banner {
+  border-color: #6eb9aa;
+  background: #e1f5ef;
+  color: #164f46;
+}
+
 .login-form label, .operator-session label {
   display: grid;
   gap: 6px;
@@ -427,10 +459,14 @@ input:focus, select:focus, button:focus-visible {
   .session-panel, .operations-grid {
     grid-template-columns: 1fr;
   }
+
+  .demo-access {
+    grid-column: 1;
+  }
 }
 
 @media (max-width: 680px) {
-  .hero, .panel-header, .login-form, .operator-session {
+  .hero, .panel-header, .login-form, .operator-session, .demo-access {
     flex-direction: column;
     align-items: stretch;
   }

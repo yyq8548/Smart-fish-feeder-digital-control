@@ -4,6 +4,8 @@ const API_BASE = globalThis.FISH_FEEDER_API_URL ||
   (globalThis.location?.port === "8080" ? "/api" : "http://127.0.0.1:8000");
 
 export const TOKEN_STORAGE_KEY = "fish-feeder-operator-token";
+export const DEMO_USERNAME = "demo";
+export const DEMO_PASSWORD = "smartfishdemo";
 export const MIN_ACTUATION_DURATION_MS = 500;
 export const MAX_ACTUATION_DURATION_MS = 60_000;
 export const DEFAULT_ACTUATION_DURATION_MS = 1_000;
@@ -284,6 +286,7 @@ export function createDashboardController({
     deviceUid: DEFAULT_DEVICE_UID,
     deviceId: null,
     online: false,
+    demo: false,
     busy: false,
     viewEpoch: 0,
     monitorRequestId: 0,
@@ -303,14 +306,19 @@ export function createDashboardController({
     return state.viewEpoch === viewEpoch && state.token === token && state.deviceUid === deviceUid;
   }
 
-  function setAuthenticated(authenticated, username = "") {
+  function setAuthenticated(authenticated, username = "", role = "operator") {
     const loginForm = documentRef.getElementById("loginForm");
     const operatorSession = documentRef.getElementById("operatorSession");
     if (loginForm) loginForm.hidden = authenticated;
     if (operatorSession) operatorSession.hidden = !authenticated;
     const usernameElement = documentRef.getElementById("operatorUsername");
     if (usernameElement) usernameElement.textContent = username;
+    const demoAccess = documentRef.getElementById("demoAccess");
+    if (demoAccess) demoAccess.hidden = authenticated;
+    const demoModeBanner = documentRef.getElementById("demoModeBanner");
+    if (demoModeBanner) demoModeBanner.hidden = !authenticated || role !== "demo";
     documentRef.body.dataset.authenticated = String(authenticated);
+    documentRef.body.dataset.accountRole = authenticated ? role : "anonymous";
   }
 
   function updateControlAvailability() {
@@ -323,7 +331,9 @@ export function createDashboardController({
         ? "Commands are disabled because the selected device is offline."
         : state.busy
           ? "Submitting command…"
-          : "Device is online. Every command requires confirmation.";
+          : state.demo
+            ? "Demo mode: commands complete in the simulator and never reach physical hardware."
+            : "Device is online. Every command requires confirmation.";
     setNotice(documentRef.getElementById("controlState"), message, enabled ? "normal" : "warning");
   }
 
@@ -415,7 +425,8 @@ export function createDashboardController({
       if (devices.length === 0) throw new Error("No devices are provisioned for this operator.");
       state.deviceUid = populateDeviceSelect(documentRef.getElementById("deviceSelect"), devices, state.deviceUid);
       state.deviceId = devices.find((device) => device.device_uid === state.deviceUid)?.id ?? null;
-      setAuthenticated(true, user.username);
+      state.demo = user.role === "demo";
+      setAuthenticated(true, user.username, user.role);
       setNotice(documentRef.getElementById("loginMessage"), "", "normal");
       await refresh();
       return true;
@@ -455,6 +466,7 @@ export function createDashboardController({
     state.token = null;
     state.deviceId = null;
     state.online = false;
+    state.demo = false;
     clearOperatorSession(storage);
     setAuthenticated(false);
     resetTelemetry(documentRef);
@@ -511,6 +523,9 @@ export function createDashboardController({
       });
     });
     documentRef.getElementById("logoutButton")?.addEventListener("click", () => logout());
+    documentRef.getElementById("demoLoginButton")?.addEventListener("click", () => {
+      login(DEMO_USERNAME, DEMO_PASSWORD);
+    });
     documentRef.getElementById("deviceSelect")?.addEventListener("change", (event) => {
       invalidateView();
       const selected = event.currentTarget.selectedOptions[0];

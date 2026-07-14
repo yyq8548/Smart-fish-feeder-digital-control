@@ -19,6 +19,14 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
+from .demo_data import (
+    create_demo_command,
+    demo_alerts,
+    demo_device,
+    demo_status,
+    demo_telemetry,
+    list_demo_commands,
+)
 from .logging_config import configure_logging
 from .models import Alert, Device, DeviceCommand, FeedingExecution, FeedingSchedule, TelemetryRecord, User
 from .rate_limit import rate_limiter
@@ -47,6 +55,7 @@ from .security import (
     get_current_user,
     hash_device_key,
     hash_password,
+    require_operator,
     verify_device_key,
     verify_password,
 )
@@ -65,9 +74,38 @@ logger = logging.getLogger("fish_feeder")
 
 
 def seed_bootstrap_records(db: Session) -> None:
+    if settings.demo_enabled and settings.demo_username == settings.admin_username:
+        raise RuntimeError("Demo and administrator usernames must be different")
     user = db.scalar(select(User).where(User.username == settings.admin_username))
     if user is None:
-        db.add(User(username=settings.admin_username, password_hash=hash_password(settings.admin_password)))
+        db.add(
+            User(
+                username=settings.admin_username,
+                password_hash=hash_password(settings.admin_password),
+                role="operator",
+            )
+        )
+    else:
+        user.role = "operator"
+    demo_users = list(db.scalars(select(User).where(User.role == "demo")))
+    for existing_demo in demo_users:
+        if not settings.demo_enabled or existing_demo.username != settings.demo_username:
+            existing_demo.active = False
+    if settings.demo_enabled:
+        demo_user = db.scalar(select(User).where(User.username == settings.demo_username))
+        if demo_user is None:
+            db.add(
+                User(
+                    username=settings.demo_username,
+                    password_hash=hash_password(settings.demo_password),
+                    role="demo",
+                )
+            )
+        else:
+            demo_user.role = "demo"
+            demo_user.active = True
+            if not verify_password(settings.demo_password, demo_user.password_hash):
+                demo_user.password_hash = hash_password(settings.demo_password)
     device = db.scalar(select(Device).where(Device.device_uid == settings.bootstrap_device_uid))
     if device is None:
         db.add(
@@ -210,7 +248,9 @@ def login(
     db: Session = Depends(get_db),
 ) -> Token:
     client = request.client.host if request.client else "unknown"
-    rate_limit_or_429(f"login:{client}", settings.login_rate_limit_per_minute)
+    is_demo_login = settings.demo_enabled and form.username == settings.demo_username
+    login_limit = settings.demo_login_rate_limit_per_minute if is_demo_login else settings.login_rate_limit_per_minute
+    rate_limit_or_429(f"login:{client}:{form.username.lower()}", login_limit)
     user = db.scalar(select(User).where(User.username == form.username, User.active.is_(True)))
     if user is None or not verify_password(form.password, user.password_hash):
         raise HTTPException(
@@ -222,15 +262,15 @@ def login(
 
 
 @app.get("/users/me", response_model=UserOut)
-def current_user(user: User = Depends(get_current_user)) -> User:
-    return user
+def current_user(user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut.model_validate(user)
 
 
 @app.post("/devices", response_model=DeviceProvisioned, status_code=201)
 def provision_device(
     payload: DeviceCreate,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> DeviceProvisioned:
     if db.scalar(select(Device.id).where(Device.device_uid == payload.device_uid)) is not None:
         raise HTTPException(status_code=409, detail="Device UID already exists")
@@ -247,15 +287,17 @@ def provision_device(
 
 
 @app.get("/devices", response_model=list[DeviceOut])
-def list_devices(db: Session = Depends(get_db), _user: User = Depends(get_current_user)) -> list[Device]:
-    return list(db.scalars(select(Device).order_by(Device.device_uid)))
+def list_devices(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[DeviceOut]:
+    if user.role == "demo":
+        return [demo_device(settings.demo_device_uid)]
+    return [DeviceOut.model_validate(device) for device in db.scalars(select(Device).order_by(Device.device_uid))]
 
 
 @app.post("/devices/{device_uid}/rotate-key", response_model=DeviceProvisioned)
 def rotate_device_key(
     device_uid: str,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> DeviceProvisioned:
     device = get_device_or_404(db, device_uid)
     api_key = secrets.token_urlsafe(32)
@@ -444,22 +486,30 @@ def list_telemetry(
     limit: int = Query(50, ge=1, le=500),
     device_uid: str | None = None,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
-) -> list[TelemetryRecord]:
+    user: User = Depends(get_current_user),
+) -> list[TelemetryOut]:
+    if user.role == "demo":
+        if device_uid not in {None, settings.demo_device_uid}:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return demo_telemetry()[-limit:]
     query = select(TelemetryRecord).order_by(desc(TelemetryRecord.created_at)).limit(limit)
     if device_uid:
         device = get_device_or_404(db, device_uid)
         query = query.where(TelemetryRecord.device_id == device.id)
     records = list(db.scalars(query))
-    return list(reversed(records))
+    return [TelemetryOut.model_validate(record) for record in reversed(records)]
 
 
 @app.get("/device-status", response_model=DeviceStatus)
 def get_device_status(
     device_uid: str = "feeder-001",
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> DeviceStatus:
+    if user.role == "demo":
+        if device_uid != settings.demo_device_uid:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return demo_status(settings.demo_device_uid)
     device = db.scalar(select(Device).where(Device.device_uid == device_uid))
     latest = (
         None
@@ -505,7 +555,7 @@ def create_schedule(
     device_uid: str,
     payload: ScheduleCreate,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> FeedingSchedule:
     device = get_device_or_404(db, device_uid)
     try:
@@ -532,10 +582,17 @@ def create_schedule(
 def list_schedules(
     device_uid: str,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
-) -> list[FeedingSchedule]:
+    user: User = Depends(get_current_user),
+) -> list[ScheduleOut]:
+    if user.role == "demo":
+        if device_uid != settings.demo_device_uid:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return []
     device = get_device_or_404(db, device_uid)
-    return list(db.scalars(select(FeedingSchedule).where(FeedingSchedule.device_id == device.id)))
+    return [
+        ScheduleOut.model_validate(schedule)
+        for schedule in db.scalars(select(FeedingSchedule).where(FeedingSchedule.device_id == device.id))
+    ]
 
 
 @app.patch("/schedules/{schedule_id}", response_model=ScheduleOut)
@@ -543,7 +600,7 @@ def update_schedule(
     schedule_id: int,
     payload: ScheduleUpdate,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> FeedingSchedule:
     schedule = db.get(FeedingSchedule, schedule_id)
     if schedule is None:
@@ -575,7 +632,7 @@ def update_schedule(
 def delete_schedule(
     schedule_id: int,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> Response:
     schedule = db.get(FeedingSchedule, schedule_id)
     if schedule is None:
@@ -594,13 +651,17 @@ def list_feeding_executions(
     limit: int = Query(50, ge=1, le=500),
     device_uid: str | None = None,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
-) -> list[FeedingExecution]:
+    user: User = Depends(get_current_user),
+) -> list[FeedingExecutionOut]:
+    if user.role == "demo":
+        if device_uid not in {None, settings.demo_device_uid}:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return []
     query = select(FeedingExecution).order_by(desc(FeedingExecution.created_at)).limit(limit)
     if device_uid:
         device = get_device_or_404(db, device_uid)
         query = query.where(FeedingExecution.device_id == device.id)
-    return list(db.scalars(query))
+    return [FeedingExecutionOut.model_validate(execution) for execution in db.scalars(query)]
 
 
 @app.get("/alerts", response_model=list[AlertOut])
@@ -609,22 +670,27 @@ def list_alerts(
     unacknowledged_only: bool = False,
     device_uid: str | None = None,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
-) -> list[Alert]:
+    user: User = Depends(get_current_user),
+) -> list[AlertOut]:
+    if user.role == "demo":
+        if device_uid not in {None, settings.demo_device_uid}:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        alerts = demo_alerts()
+        return [alert for alert in alerts if not unacknowledged_only or alert.acknowledged_at is None][:limit]
     query = select(Alert).order_by(desc(Alert.created_at)).limit(limit)
     if unacknowledged_only:
         query = query.where(Alert.acknowledged_at.is_(None))
     if device_uid:
         device = get_device_or_404(db, device_uid)
         query = query.where(Alert.device_id == device.id)
-    return list(db.scalars(query))
+    return [AlertOut.model_validate(alert) for alert in db.scalars(query)]
 
 
 @app.post("/alerts/{alert_id}/acknowledge", response_model=AlertOut)
 def acknowledge_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_operator),
 ) -> Alert:
     alert = db.get(Alert, alert_id)
     if alert is None:
@@ -643,7 +709,11 @@ def create_command(
     payload: CommandCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> DeviceCommand:
+) -> DeviceCommand | CommandOut:
+    if user.role == "demo":
+        if device_uid != settings.demo_device_uid:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return create_demo_command(payload, settings.manual_command_ttl_seconds)
     device = get_device_or_404(db, device_uid)
     now = datetime.now(UTC)
     actuation_commands = {"FEED_NOW", "CLEAN_PUMP", "SET_COOLING"}
@@ -697,17 +767,22 @@ def list_commands(
     device_uid: str,
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
-) -> list[DeviceCommand]:
+    user: User = Depends(get_current_user),
+) -> list[CommandOut]:
+    if user.role == "demo":
+        if device_uid != settings.demo_device_uid:
+            raise HTTPException(status_code=404, detail="Demo device not found")
+        return list_demo_commands(limit)
     device = get_device_or_404(db, device_uid)
-    return list(
-        db.scalars(
+    return [
+        CommandOut.model_validate(command)
+        for command in db.scalars(
             select(DeviceCommand)
             .where(DeviceCommand.device_id == device.id)
             .order_by(desc(DeviceCommand.created_at))
             .limit(limit)
         )
-    )
+    ]
 
 
 @app.post("/device-commands/claim", response_model=list[CommandOut])
@@ -828,7 +903,7 @@ def complete_command(
 @app.post("/reliability/scan", response_model=ReliabilityScanOut)
 def run_reliability_scan(
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _user: User = Depends(require_operator),
 ) -> ReliabilityScanOut:
     missed, offline, commands = scan_reliability(db, datetime.now(UTC), settings.offline_after_seconds)
     return ReliabilityScanOut(

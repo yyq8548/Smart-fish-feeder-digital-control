@@ -64,3 +64,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_error
     return user
+
+
+def require_operator(user: User = Depends(get_current_user)) -> User:
+    if user.role != "operator":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The public demo account cannot modify production resources",
+        )
+    return user

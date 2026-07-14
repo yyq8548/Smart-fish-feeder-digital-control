@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     credential_pepper: str = "change-this-credential-pepper"
     admin_username: str = "admin"
     admin_password: str = "change-this-admin-password"
+    demo_enabled: bool = True
+    demo_username: str = Field(default="demo", min_length=3, max_length=80)
+    demo_password: str = Field(default="smartfishdemo", min_length=8, max_length=128)
+    demo_device_uid: str = Field(default="demo-feeder-001", min_length=3, max_length=80)
     jwt_secret: str = "change-this-jwt-secret-at-least-32-characters"
     jwt_expire_minutes: int = 30
     root_path: str = ""
@@ -20,6 +24,7 @@ class Settings(BaseSettings):
     max_future_skew_seconds: int = 300
     telemetry_rate_limit_per_minute: int = Field(default=120, ge=1)
     login_rate_limit_per_minute: int = Field(default=10, ge=1)
+    demo_login_rate_limit_per_minute: int = Field(default=60, ge=1)
     reliability_scan_interval_seconds: int = Field(default=60, ge=5)
     command_lease_seconds: int = Field(default=30, ge=5, le=300)
     command_result_grace_seconds: int = Field(default=90, ge=15, le=600)

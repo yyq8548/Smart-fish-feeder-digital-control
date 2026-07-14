@@ -36,6 +36,13 @@
         </label>
         <button class="button primary" type="submit">Sign in</button>
       </form>
+      <div id="demoAccess" class="demo-access">
+        <div>
+          <span class="label">Public interactive demo</span>
+          <p>Sample data and simulated controls only. No physical hardware is connected.</p>
+        </div>
+        <button class="button secondary" id="demoLoginButton" type="button">Try demo</button>
+      </div>
       <div id="operatorSession" class="operator-session" hidden>
         <div>
           <span class="label">Signed in as</span>
@@ -50,6 +57,9 @@
       <p id="loginMessage" class="notice" aria-live="polite" hidden></p>
     </section>
 
+    <p id="demoModeBanner" class="notice demo-banner" aria-live="polite" hidden>
+      Public demo mode: all telemetry is synthetic and every device command is simulated. Production devices and data are isolated.
+    </p>
     <p id="monitoringMessage" class="notice wide-notice" aria-live="polite" hidden></p>
 
     <section class="grid" aria-label="Selected device telemetry">

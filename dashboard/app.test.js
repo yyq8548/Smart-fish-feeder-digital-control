@@ -33,8 +33,10 @@ function installDom() {
     <span id="pumpStatus"></span><span id="lastSeen"></span><span id="systemHealth"></span>
     <p id="monitoringMessage" hidden></p><ul id="alertLog"></ul><canvas id="tempChart"></canvas>
     <form id="loginForm"><input name="username"><input name="password"><button type="submit">Login</button></form>
+    <div id="demoAccess"><button id="demoLoginButton" type="button">Try demo</button></div>
     <div id="operatorSession" hidden><span id="operatorUsername"></span><select id="deviceSelect"></select>
       <button id="logoutButton" type="button">Logout</button></div>
+    <p id="demoModeBanner" hidden></p>
     <p id="loginMessage" hidden></p><p id="controlState"></p><p id="commandMessage" hidden></p>
     <input id="feedDuration" value="1000" data-duration-control disabled>
     <button type="button" data-command="FEED_NOW" data-duration-input="feedDuration" disabled>Feed</button>
@@ -275,7 +277,7 @@ describe("operator controller", () => {
     return vi.fn(async (url, options) => {
       const method = options.method || "GET";
       if (url.endsWith("/auth/token")) return response({ access_token: "jwt" });
-      if (url.endsWith("/users/me")) return response({ username: "alice" });
+      if (url.endsWith("/users/me")) return response({ username: "alice", role: "operator" });
       if (url.endsWith("/devices") && method === "GET") return response([
         { id: 1, device_uid: "feeder-001", name: "Primary" },
         { id: 2, device_uid: "feeder-002", name: "Backup" }
@@ -351,6 +353,50 @@ describe("operator controller", () => {
     expect(document.getElementById("temperature").textContent).toBe("--");
     expect(document.getElementById("systemHealth").textContent).toBe("Sign In Required");
     expect(document.getElementById("monitoringMessage").textContent).toContain("Authenticate");
+  });
+
+  it("offers one-click demo access and labels simulated controls", async () => {
+    const fetchImpl = vi.fn(async (url, options) => {
+      const method = options.method || "GET";
+      if (url.endsWith("/auth/token")) {
+        expect(options.body.toString()).toContain("username=demo");
+        expect(options.body.toString()).toContain("password=smartfishdemo");
+        return response({ access_token: "demo-jwt" });
+      }
+      if (url.endsWith("/users/me")) return response({ username: "demo", role: "demo" });
+      if (url.endsWith("/devices") && method === "GET") {
+        return response([{ id: -1, device_uid: "demo-feeder-001", name: "Public Demo Feeder" }]);
+      }
+      if (url.includes("/device-status")) {
+        return response({
+          online: true,
+          temperature_c: 4.6,
+          cooling_on: false,
+          pump_state: "IDLE",
+          last_seen: "2026-01-01T12:00:00Z",
+          alert_level: "normal",
+          alert_message: "Public demo online"
+        });
+      }
+      if (url.includes("/telemetry") || url.includes("/alerts") || url.includes("/commands")) {
+        return response([]);
+      }
+      throw new Error(`Unexpected request ${method} ${url}`);
+    });
+    const controller = createDashboardController({
+      documentRef: document,
+      fetchImpl,
+      storage: sessionStorage,
+      chartFactory: null
+    });
+    await controller.initialize();
+    document.getElementById("demoLoginButton").click();
+    await vi.waitFor(() => expect(document.body.dataset.accountRole).toBe("demo"));
+    expect(controller.state.demo).toBe(true);
+    expect(document.getElementById("demoModeBanner").hidden).toBe(false);
+    expect(document.getElementById("demoAccess").hidden).toBe(true);
+    expect(document.getElementById("controlState").textContent).toContain("never reach physical hardware");
+    expect(document.querySelector("[data-command='FEED_NOW']").disabled).toBe(false);
   });
 
   it("blocks actuation while offline and displays command API conflicts", async () => {

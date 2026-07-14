@@ -11,11 +11,16 @@ os.environ["FISH_FEEDER_DEVICE_API_KEY"] = "test-device-key"
 os.environ["FISH_FEEDER_CREDENTIAL_PEPPER"] = "test-credential-pepper"
 os.environ["FISH_FEEDER_ADMIN_USERNAME"] = "test-admin"
 os.environ["FISH_FEEDER_ADMIN_PASSWORD"] = "test-admin-password"
+os.environ["FISH_FEEDER_DEMO_ENABLED"] = "true"
+os.environ["FISH_FEEDER_DEMO_USERNAME"] = "demo"
+os.environ["FISH_FEEDER_DEMO_PASSWORD"] = "smartfishdemo"
+os.environ["FISH_FEEDER_DEMO_DEVICE_UID"] = "demo-feeder-001"
 os.environ["FISH_FEEDER_JWT_SECRET"] = "test-jwt-secret-that-is-long-enough"
 os.environ["FISH_FEEDER_OFFLINE_AFTER_SECONDS"] = "60"
 
 import pytest
 from app.database import Base, engine
+from app.demo_data import reset_demo_state
 from app.main import app
 from app.rate_limit import rate_limiter
 from fastapi.testclient import TestClient
@@ -33,6 +38,7 @@ def clean_database() -> Generator[None, None, None]:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     rate_limiter.reset()
+    reset_demo_state()
     yield
     Base.metadata.drop_all(bind=engine)
 
@@ -48,6 +54,16 @@ def operator_headers(client: TestClient) -> dict[str, str]:
     response = client.post(
         "/auth/token",
         data={"username": "test-admin", "password": "test-admin-password"},
+    )
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.fixture
+def demo_headers(client: TestClient) -> dict[str, str]:
+    response = client.post(
+        "/auth/token",
+        data={"username": "demo", "password": "smartfishdemo"},
     )
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
