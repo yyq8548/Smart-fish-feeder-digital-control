@@ -55,6 +55,8 @@ export function renderAlerts(element, alerts) {
     const level = alert.level ?? alert.alert_level ?? "unknown";
     const message = alert.message ?? alert.alert_message ?? "No details";
     const category = alert.category ? ` ${alert.category}:` : ":";
+    item.className = "alert-item";
+    item.dataset.level = String(level).toLowerCase();
     item.textContent = `[${formatTime(alert.created_at)}] ${level.toUpperCase()}${category} ${message}`;
     element.appendChild(item);
   }
@@ -211,6 +213,14 @@ function resetTelemetry(documentRef) {
     const element = documentRef.getElementById(id);
     if (element) element.textContent = "--";
   }
+  for (const id of ["temperatureCard", "coolingCard", "pumpCard", "heartbeatCard"]) {
+    const card = documentRef.getElementById(id);
+    if (!card) continue;
+    delete card.dataset.level;
+    delete card.dataset.active;
+    delete card.dataset.state;
+    delete card.dataset.online;
+  }
 }
 
 function clearChart(chart) {
@@ -243,6 +253,14 @@ export async function refreshDashboard({
     documentRef.getElementById("coolingStatus").textContent = status.cooling_on === null ? "--" : status.cooling_on ? "ON" : "OFF";
     documentRef.getElementById("pumpStatus").textContent = status.pump_state || "--";
     documentRef.getElementById("lastSeen").textContent = formatTime(status.last_seen);
+    const temperatureCard = documentRef.getElementById("temperatureCard");
+    const coolingCard = documentRef.getElementById("coolingCard");
+    const pumpCard = documentRef.getElementById("pumpCard");
+    const heartbeatCard = documentRef.getElementById("heartbeatCard");
+    if (temperatureCard) temperatureCard.dataset.level = status.alert_level || "unknown";
+    if (coolingCard) coolingCard.dataset.active = String(Boolean(status.cooling_on));
+    if (pumpCard) pumpCard.dataset.state = String(status.pump_state || "unknown").toLowerCase();
+    if (heartbeatCard) heartbeatCard.dataset.online = String(Boolean(status.online));
     setHealth(health, status.alert_level, status.alert_message || (status.online ? "System Normal" : "Device Offline"));
     setNotice(monitoringMessage, status.online ? "" : "Live telemetry is unavailable. Commands are disabled while the device is offline.", "warning");
     const matchingAlerts = deviceId === null ? alerts : alerts.filter((alert) => alert.device_id === deviceId);
