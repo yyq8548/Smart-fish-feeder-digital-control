@@ -29,8 +29,10 @@ function response(payload, status = 200) {
 
 function installDom() {
   document.body.innerHTML = `
-    <span id="temperature"></span><span id="coolingStatus"></span>
-    <span id="pumpStatus"></span><span id="lastSeen"></span><span id="systemHealth"></span>
+    <article id="temperatureCard"><span id="temperature"></span></article>
+    <article id="coolingCard"><span id="coolingStatus"></span></article>
+    <article id="pumpCard"><span id="pumpStatus"></span></article>
+    <article id="heartbeatCard"><span id="lastSeen"></span></article><span id="systemHealth"></span>
     <p id="monitoringMessage" hidden></p><ul id="alertLog"></ul><canvas id="tempChart"></canvas>
     <form id="loginForm"><input name="username"><input name="password"><button type="submit">Login</button></form>
     <div id="demoAccess"><button id="demoLoginButton" type="button">Try demo</button></div>
@@ -74,6 +76,7 @@ describe("rendering helpers", () => {
     }]);
     expect(list.textContent).toContain("WARNING TEMPERATURE: <b>Warm</b>");
     expect(list.querySelector("b")).toBeNull();
+    expect(list.querySelector("li").dataset.level).toBe("warning");
     expect(() => renderAlerts(null, [])).not.toThrow();
   });
 
@@ -238,6 +241,10 @@ describe("monitoring states", () => {
     });
     expect(status.online).toBe(true);
     expect(document.getElementById("temperature").textContent).toBe("4.3");
+    expect(document.getElementById("temperatureCard").dataset.level).toBe("normal");
+    expect(document.getElementById("coolingCard").dataset.active).toBe("true");
+    expect(document.getElementById("pumpCard").dataset.state).toBe("feeding");
+    expect(document.getElementById("heartbeatCard").dataset.online).toBe("true");
     expect(document.getElementById("alertLog").textContent).toContain("Warm");
     expect(document.getElementById("alertLog").textContent).not.toContain("Other");
     expect(chart.update).toHaveBeenCalled();
@@ -266,6 +273,7 @@ describe("monitoring states", () => {
     expect(document.getElementById("temperature").textContent).toBe("--");
     expect(document.getElementById("systemHealth").textContent).toBe("API Offline");
     expect(document.getElementById("monitoringMessage").textContent).toContain("Down");
+    expect(document.getElementById("temperatureCard").dataset.level).toBeUndefined();
     expect(chart.data.labels).toEqual([]);
     expect(chart.data.datasets[0].data).toEqual([]);
   });
