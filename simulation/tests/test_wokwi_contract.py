@@ -87,4 +87,5 @@ def test_wokwi_scenario_covers_boundaries_and_pump_phases() -> None:
     assert "value: 1" in scenario
     assert "value: 0" in scenario
     for pin in (25, 26, 27, 33):
-        assert f"pin: {pin}" in scenario
+        assert f"pin: D{pin}" in scenario
+    assert "expected:" not in scenario

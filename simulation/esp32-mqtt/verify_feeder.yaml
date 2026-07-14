@@ -8,8 +8,8 @@ steps:
   # The initial 4 C reading is inside the 3-5 C hysteresis band.
   - expect-pin:
       part-id: esp
-      pin: 25
-      expected: 0
+      pin: D25
+      value: 0
 
   # Above 5 C enables cooling.
   - set-control:
@@ -19,8 +19,8 @@ steps:
   - delay: 2500ms
   - expect-pin:
       part-id: esp
-      pin: 25
-      expected: 1
+      pin: D25
+      value: 1
 
   # Exactly 5 C keeps the previous cooling state.
   - set-control:
@@ -30,8 +30,8 @@ steps:
   - delay: 2500ms
   - expect-pin:
       part-id: esp
-      pin: 25
-      expected: 1
+      pin: D25
+      value: 1
 
   # Below 3 C disables cooling.
   - set-control:
@@ -41,8 +41,8 @@ steps:
   - delay: 2500ms
   - expect-pin:
       part-id: esp
-      pin: 25
-      expected: 0
+      pin: D25
+      value: 0
 
   # A local button press starts forward feeding.
   - set-control:
@@ -52,16 +52,16 @@ steps:
   - delay: 100ms
   - expect-pin:
       part-id: esp
-      pin: 33
-      expected: 1
+      pin: D33
+      value: 1
   - expect-pin:
       part-id: esp
-      pin: 26
-      expected: 1
+      pin: D26
+      value: 1
   - expect-pin:
       part-id: esp
-      pin: 27
-      expected: 0
+      pin: D27
+      value: 0
   - set-control:
       part-id: manualFeed
       control: pressed
@@ -71,40 +71,40 @@ steps:
   - delay: 10100ms
   - expect-pin:
       part-id: esp
-      pin: 33
-      expected: 0
+      pin: D33
+      value: 0
   - expect-pin:
       part-id: esp
-      pin: 26
-      expected: 0
+      pin: D26
+      value: 0
   - expect-pin:
       part-id: esp
-      pin: 27
-      expected: 0
+      pin: D27
+      value: 0
   # Reverse cleaning then runs and returns all pump outputs to idle.
   - delay: 2100ms
   - expect-pin:
       part-id: esp
-      pin: 33
-      expected: 1
+      pin: D33
+      value: 1
   - expect-pin:
       part-id: esp
-      pin: 26
-      expected: 0
+      pin: D26
+      value: 0
   - expect-pin:
       part-id: esp
-      pin: 27
-      expected: 1
+      pin: D27
+      value: 1
   - delay: 10100ms
   - expect-pin:
       part-id: esp
-      pin: 33
-      expected: 0
+      pin: D33
+      value: 0
   - expect-pin:
       part-id: esp
-      pin: 26
-      expected: 0
+      pin: D26
+      value: 0
   - expect-pin:
       part-id: esp
-      pin: 27
-      expected: 0
+      pin: D27
+      value: 0
