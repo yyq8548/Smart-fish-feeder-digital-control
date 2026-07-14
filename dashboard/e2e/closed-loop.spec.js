@@ -14,7 +14,7 @@ test("dashboard FEED_NOW completes through the Wokwi ESP32", async ({ page }) =>
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 
-  await expect(page.getByLabel("Selected device")).toHaveValue(deviceUid);
+  await expect(page.locator("#deviceSelect")).toHaveValue(deviceUid);
   const feedButton = page.getByRole("button", { name: "Feed now" });
   await expect(feedButton).toBeEnabled();
   await expect(page.locator("#controlState")).toContainText("Device is online");
