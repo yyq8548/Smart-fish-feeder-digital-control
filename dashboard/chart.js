@@ -45,22 +45,22 @@ export class TelemetryLineChart {
       const fraction = step / 5;
       const y = margin.top + plotHeight * fraction;
       const value = yMax - (yMax - yMin) * fraction;
-      context.strokeStyle = "rgba(17, 74, 83, 0.10)";
+      context.strokeStyle = "rgba(158, 205, 210, 0.12)";
       context.beginPath();
       context.moveTo(margin.left, y);
       context.lineTo(margin.left + plotWidth, y);
       context.stroke();
-      context.fillStyle = "#73868f";
+      context.fillStyle = "#86a2ad";
       context.textAlign = "right";
       context.fillText(value.toFixed(1), margin.left - 9, y);
     }
 
-    context.fillStyle = "#5f7782";
+    context.fillStyle = "#a9c0c8";
     context.textAlign = "left";
     context.fillText("Reservoir temperature (°C)", margin.left, 14);
 
     if (finiteValues.length === 0) {
-      context.fillStyle = "#73868f";
+      context.fillStyle = "#86a2ad";
       context.textAlign = "center";
       context.fillText("Waiting for telemetry", margin.left + plotWidth / 2, margin.top + plotHeight / 2);
       return;
@@ -100,7 +100,7 @@ export class TelemetryLineChart {
 
     const labelIndexes = [...new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1])]
       .filter((index) => index >= 0 && labels[index]);
-    context.fillStyle = "#73868f";
+    context.fillStyle = "#86a2ad";
     context.textBaseline = "top";
     labelIndexes.forEach((index) => {
       context.textAlign = index === 0 ? "left" : index === labels.length - 1 ? "right" : "center";

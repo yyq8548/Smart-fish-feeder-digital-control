@@ -11,6 +11,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_DASHBOARD_URL || "http://127.0.0.1:8080",
     browserName: "chromium",
+    channel: process.env.E2E_BROWSER_CHANNEL || undefined,
     headless: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure"

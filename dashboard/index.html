@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#071c2b" />
   <meta name="description" content="Secure cloud control board for an ESP32 smart fish feeder." />
   <title>Smart Fish Feeder Control Board</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=immersive-1" />
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -27,6 +27,13 @@
           <small>Cloud control board</small>
         </span>
       </a>
+      <nav class="quick-nav" aria-label="Dashboard sections">
+        <a href="#top">Aquarium</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#overview">Overview</a>
+        <a href="#operations">Controls</a>
+        <a href="#alerts">Alerts</a>
+      </nav>
       <div class="topbar-status">
         <span class="secure-chip">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 8V6.4a4.5 4.5 0 0 1 9 0V8M4 8h12v9H4V8Z" /></svg>
@@ -36,58 +43,105 @@
       </div>
     </header>
 
-    <section class="hero" id="top">
-      <div class="hero-copy">
-        <p class="eyebrow light">Connected feeding, clearly controlled</p>
-        <h1>Feed Smarter.<br /><span>Worry Less.</span></h1>
-        <p class="subtitle">
-          Monitor food temperature, feeding schedules, pump status, and alerts from one secure dashboard.
-        </p>
-        <div class="hero-chips" aria-label="Platform capabilities">
-          <span>Live telemetry</span>
-          <span>Signed commands</span>
-          <span>Durable history</span>
-        </div>
-      </div>
+    <section class="hero aquarium-hero" id="top" data-playing="true" aria-labelledby="hero-heading">
+      <video id="aquariumVideo" class="aquarium-backdrop" muted loop autoplay playsinline preload="metadata"
+        aria-label="Aquarium scene">
+        <source src="assets/aquarium.mp4?v=trimmed-1" type="video/mp4" />
+      </video>
+      <div class="aquarium-depth" aria-hidden="true"></div>
 
-      <div class="connection-card" aria-label="Cloud to feeder connection path">
-        <div class="connection-card-header">
-          <div>
-            <span class="connection-label">Connection path</span>
-            <strong>Cloud to hardware</strong>
-          </div>
-          <span class="pulse-label"><i></i> Ready</span>
+      <div class="experience-shell" id="conciergeShowcase" data-playing="true" data-feeding="false">
+        <div class="experience-masthead">
+          <span class="experience-label"><i></i> Live aquarium</span>
+          <button class="aquarium-play" id="aquariumPlayButton" type="button" aria-pressed="true">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /></svg>
+            <span>Pause aquarium scene</span>
+          </button>
         </div>
-        <div class="connection-flow">
-          <div class="connection-node">
-            <span class="node-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 8.4 4.8 4.8 0 0 0 7 18Z" /></svg>
-            </span>
-            <small>Control board</small>
-          </div>
-          <span class="flow-line"><i></i></span>
-          <div class="connection-node">
-            <span class="node-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9a10 10 0 0 1 14 0M8 12a6 6 0 0 1 8 0m-5 4a1.5 1.5 0 1 1 2 0" /></svg>
-            </span>
-            <small>MQTT / TLS</small>
-          </div>
-          <span class="flow-line"><i></i></span>
-          <div class="connection-node">
-            <span class="node-icon feeder-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10l1 5v8H6v-8l1-5Zm2 13v2m6-2v2M9 9h6" /></svg>
-            </span>
-            <small>ESP32 feeder</small>
+
+        <div class="hero-copy aquarium-copy">
+          <h1 id="hero-heading">Feed Smarter.<br /><span>Worry Less.</span></h1>
+          <p class="subtitle">
+            Monitor food temperature, feeding schedules, pump status, and alerts from one secure dashboard.
+          </p>
+          <a class="dashboard-scroll" href="#dashboard">
+            <span>Open full control board</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 7 6 6 6-6" /></svg>
+          </a>
+        </div>
+
+        <div class="robot-stage" aria-hidden="true">
+          <div class="robot-aura"></div>
+          <figure class="robot-portrait">
+            <img src="assets/robot-butler-cutout.png?v=1" alt="" />
+            <span class="robot-feeder" aria-hidden="true"><i></i></span>
+          </figure>
+          <div class="feeding-particles">
+            <i></i><i></i><i></i><i></i><i></i>
           </div>
         </div>
-        <div class="connection-footer">
-          <span><i class="dot dot-aqua"></i> Authenticated broker</span>
-          <span><i class="dot dot-blue"></i> Signed result</span>
+
+        <article class="scene-glass scene-card scene-temperature" id="sceneTemperatureCard">
+          <span class="scene-icon aqua" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M10 5a2 2 0 1 1 4 0v8.3a4 4 0 1 1-4 0V5Zm2 3v8" /></svg>
+          </span>
+          <span><small>Food temperature</small><strong><span id="sceneTemperature">--</span>°C</strong></span>
+        </article>
+
+        <article class="scene-glass scene-card scene-cooling" id="sceneCoolingCard">
+          <span class="scene-card-dot"></span>
+          <span><small>Cooling</small><strong id="sceneCoolingStatus">--</strong></span>
+        </article>
+
+        <article class="scene-glass scene-card scene-pump" id="scenePumpCard">
+          <span class="scene-icon coral" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 10h10v8H4v-8Zm10 2h4l2 2v4h-6m-7 0v2m10-2v2M7 7h4v3" /></svg>
+          </span>
+          <span><small>Pump status</small><strong id="scenePumpStatus">--</strong></span>
+        </article>
+
+        <article class="scene-glass scene-card scene-heartbeat" id="sceneHeartbeatCard">
+          <span class="scene-card-dot violet"></span>
+          <span><small>Last device event</small><strong id="sceneLastSeen">--</strong></span>
+        </article>
+
+        <div class="scene-actions" aria-label="Quick device actions">
+          <button class="scene-glass scene-action feed" type="button" data-scene-command="FEED_NOW"
+            data-duration-input="feedDuration" disabled>
+            <span class="scene-action-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M7 5h10l1 5v8H6v-8l1-5Zm2 4h6m-5 9v2m4-2v2" /></svg>
+            </span>
+            <span><small>Dispense and reverse</small><strong>Feed now</strong></span>
+          </button>
+          <button class="scene-glass scene-action" type="button" data-scene-command="CLEAN_PUMP"
+            data-duration-input="cleanDuration" disabled>
+            <span class="scene-action-icon clean" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" /></svg>
+            </span>
+            <span><small>Reverse cycle</small><strong>Clean pump</strong></span>
+          </button>
         </div>
+
+        <div class="scene-glass butler-card scene-butler" id="butlerCard" data-state="ready" aria-live="polite">
+          <span class="butler-avatar" aria-hidden="true">
+            <svg viewBox="0 0 48 48">
+              <path d="M13 20c4.6-6.5 12.8-8.6 20-3.2l5-3.8v14l-5-3.8c-7.2 5.4-15.4 3.3-20-3.2Z" />
+              <circle cx="29" cy="18.5" r="1.5" />
+              <path d="M9 14v20m0-16H6m3 12H6" />
+            </svg>
+          </span>
+          <span class="butler-copy">
+            <span class="butler-label">Mechanical caretaker</span>
+            <strong id="butlerStatus">Standing by</strong>
+            <small id="butlerMessage">Ready to care for your aquarium.</small>
+          </span>
+          <span class="butler-pulse" aria-hidden="true"></span>
+        </div>
+
       </div>
     </section>
 
-    <section class="panel session-panel" aria-labelledby="access-heading">
+    <section class="panel session-panel" id="dashboard" aria-labelledby="access-heading">
       <div class="access-intro">
         <span class="section-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 2.8 8.1 7 10 4.2-1.9 7-5.5 7-10V6l-7-3Zm-2 9 1.5 1.5L15 10" /></svg>
@@ -150,13 +204,12 @@
 
     <p id="demoModeBanner" class="notice demo-banner wide-notice" aria-live="polite" hidden>
       <span class="notice-symbol" aria-hidden="true">D</span>
-      <span><strong>Public demo mode</strong> — telemetry is synthetic and every command is simulated. Production devices and data stay isolated.</span>
+      <span><strong>Public demo mode:</strong> telemetry is synthetic and every command is simulated. Production devices and data stay isolated.</span>
     </p>
     <p id="monitoringMessage" class="notice wide-notice" aria-live="polite" hidden></p>
 
-    <section class="section-heading" aria-labelledby="overview-heading">
+    <section class="section-heading" id="overview" aria-labelledby="overview-heading">
       <div>
-        <p class="eyebrow">Live overview</p>
         <h2 id="overview-heading">Feeder at a glance</h2>
       </div>
       <span class="refresh-note"><i></i> Refreshes every 2 seconds</span>
@@ -172,7 +225,7 @@
         </div>
         <h3>Reservoir temperature</h3>
         <p class="metric"><span id="temperature">--</span><span class="metric-unit">°C</span></p>
-        <p class="hint">Target band <strong>3.0–5.0 °C</strong></p>
+        <p class="hint">Target band <strong>3.0 to 5.0 &deg;C</strong></p>
       </article>
 
       <article class="card metric-card cooling-card" id="coolingCard">
@@ -219,7 +272,6 @@
             <svg viewBox="0 0 24 24"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3" /></svg>
           </span>
           <div>
-            <p class="eyebrow">Telemetry</p>
             <h2 id="history-heading">Temperature history</h2>
             <p>Recent ordered readings for the selected feeder.</p>
           </div>
@@ -234,7 +286,7 @@
       </div>
     </section>
 
-    <div class="operations-grid">
+    <div class="operations-grid" id="operations">
       <section class="panel controls-panel" aria-labelledby="controls-heading">
         <div class="panel-header compact">
           <div class="heading-with-icon">
@@ -242,7 +294,6 @@
               <svg viewBox="0 0 24 24"><path d="M12 4v16M4 12h16M7 7l10 10m0-10L7 17" /></svg>
             </span>
             <div>
-              <p class="eyebrow">Physical controls</p>
               <h2 id="controls-heading">Device commands</h2>
             </div>
           </div>
@@ -262,7 +313,7 @@
               <h3>Pump cycles</h3>
               <p class="control-hint">Choose a duration, then confirm the physical action.</p>
             </div>
-            <span>500–60,000 ms</span>
+            <span>500 to 60,000 ms</span>
           </div>
           <div class="duration-grid">
             <div class="duration-command feed-command">
@@ -329,7 +380,6 @@
               <svg viewBox="0 0 24 24"><path d="M6 4h12v16H6V4Zm3 4h6m-6 4h6m-6 4h4" /></svg>
             </span>
             <div>
-              <p class="eyebrow">Audit trail</p>
               <h2 id="commands-heading">Command history</h2>
             </div>
           </div>
@@ -341,7 +391,7 @@
       </section>
     </div>
 
-    <section class="panel alerts-panel" aria-labelledby="alerts-heading">
+    <section class="panel alerts-panel" id="alerts" aria-labelledby="alerts-heading">
       <div class="panel-header compact">
         <div class="heading-with-icon">
           <span class="section-icon soft-amber" aria-hidden="true">
@@ -369,6 +419,6 @@
     </footer>
   </main>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=immersive-1"></script>
 </body>
 </html>
