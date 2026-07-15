@@ -181,6 +181,28 @@ function commandConfirmation(commandType, deviceUid, payload) {
   return `Set cooling on ${deviceUid} to ${mode}?`;
 }
 
+function formatScheduleTime(schedule) {
+  const hour = Number(schedule.hour);
+  const minute = String(schedule.minute).padStart(2, "0");
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${period}`;
+}
+
+export function renderNextSchedule(documentRef, schedules) {
+  const timeElement = documentRef.getElementById("nextFeedTime");
+  const nameElement = documentRef.getElementById("nextFeedName");
+  const schedule = schedules.find((item) => item.enabled);
+  if (!schedule) {
+    if (timeElement) timeElement.textContent = "Not scheduled";
+    if (nameElement) nameElement.textContent = "No active feeding schedule";
+    return null;
+  }
+  if (timeElement) timeElement.textContent = formatScheduleTime(schedule);
+  if (nameElement) nameElement.textContent = `${schedule.name} · ${schedule.timezone}`;
+  return schedule;
+}
+
 function newIdempotencyKey(commandType) {
   const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   return `dashboard-${commandType.toLowerCase()}-${suffix}`;
@@ -193,10 +215,17 @@ export async function issueDeviceCommand({
   token,
   fetchImpl = fetch,
   confirmImpl = globalThis.confirm,
+  lastFeedingAt = null,
   idempotencyKey = newIdempotencyKey(commandType)
 }) {
   const normalizedPayload = normalizeCommandPayload(commandType, payload);
-  if (!confirmImpl(commandConfirmation(commandType, deviceUid, normalizedPayload))) {
+  const confirmed = await confirmImpl(commandConfirmation(commandType, deviceUid, normalizedPayload), {
+    commandType,
+    deviceUid,
+    payload: normalizedPayload,
+    lastFeedingAt
+  });
+  if (!confirmed) {
     return { cancelled: true, command: null };
   }
   const command = await requestJson(`/devices/${encodeURIComponent(deviceUid)}/commands`, {
@@ -206,6 +235,175 @@ export async function issueDeviceCommand({
     jsonBody: { idempotency_key: idempotencyKey, command_type: commandType, payload: normalizedPayload }
   });
   return { cancelled: false, command };
+}
+
+export function createCommandDialog(documentRef = document) {
+  const dialog = documentRef.getElementById("commandDialog");
+  if (!dialog || typeof dialog.showModal !== "function") return null;
+  const title = documentRef.getElementById("commandDialogTitle");
+  const description = documentRef.getElementById("commandDialogDescription");
+  const device = documentRef.getElementById("commandDialogDevice");
+  const action = documentRef.getElementById("commandDialogAction");
+  const duration = documentRef.getElementById("commandDialogDuration");
+  const lastFeed = documentRef.getElementById("commandDialogLastFeed");
+  const feedback = documentRef.getElementById("commandDialogFeedback");
+  const confirmButton = documentRef.getElementById("commandDialogConfirm");
+  const cancelButton = documentRef.getElementById("commandDialogCancel");
+  const closeButton = documentRef.getElementById("commandDialogClose");
+  if (!confirmButton || !cancelButton || !closeButton) return null;
+
+  let trigger = null;
+  let settled = false;
+  let finish = null;
+
+  function restoreFocus() {
+    const target = trigger;
+    trigger = null;
+    target?.focus?.();
+  }
+
+  function closeDialog() {
+    if (dialog.open) dialog.close();
+    restoreFocus();
+  }
+
+  function resetControls() {
+    dialog.dataset.state = "review";
+    confirmButton.disabled = false;
+    cancelButton.disabled = false;
+    closeButton.disabled = false;
+    cancelButton.textContent = "Cancel";
+    const label = confirmButton.querySelector("span");
+    if (label) label.textContent = "Confirm command";
+    if (feedback) {
+      feedback.hidden = true;
+      feedback.textContent = "";
+      delete feedback.dataset.level;
+    }
+  }
+
+  function setPending() {
+    dialog.dataset.state = "pending";
+    confirmButton.disabled = true;
+    cancelButton.disabled = true;
+    closeButton.disabled = true;
+    const label = confirmButton.querySelector("span");
+    if (label) label.textContent = "Sending command…";
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.dataset.level = "normal";
+      feedback.textContent = "Sending a signed command to the selected device.";
+    }
+  }
+
+  const manager = {
+    confirm(message, context = {}) {
+      resetControls();
+      settled = false;
+      trigger = documentRef.activeElement;
+      const commandType = context.commandType || "COMMAND";
+      const isFeed = commandType === "FEED_NOW";
+      const isClean = commandType === "CLEAN_PUMP";
+      if (title) title.textContent = isFeed ? "Confirm feeding" : isClean ? "Confirm pump cleaning" : "Confirm cooling change";
+      if (description) description.textContent = message;
+      if (device) device.textContent = context.deviceUid || "--";
+      if (action) action.textContent = commandType.replaceAll("_", " ");
+      if (duration) duration.textContent = context.payload?.duration_ms ? `${context.payload.duration_ms} ms` : "Not applicable";
+      if (lastFeed) lastFeed.textContent = context.lastFeedingAt ? formatTime(context.lastFeedingAt) : "No recent feeding recorded";
+
+      return new Promise((resolve) => {
+        finish = (accepted) => {
+          if (settled) return;
+          settled = true;
+          if (accepted) setPending();
+          else closeDialog();
+          resolve(accepted);
+        };
+        confirmButton.onclick = () => finish(true);
+        cancelButton.onclick = () => finish(false);
+        closeButton.onclick = () => finish(false);
+        dialog.oncancel = (event) => {
+          event.preventDefault();
+          if (dialog.dataset.state !== "pending") finish(false);
+        };
+        dialog.onclick = (event) => {
+          if (event.target === dialog && dialog.dataset.state !== "pending") finish(false);
+        };
+        dialog.showModal();
+        confirmButton.focus();
+      });
+    },
+    complete() {
+      dialog.dataset.state = "success";
+      closeDialog();
+    },
+    fail(message) {
+      dialog.dataset.state = "error";
+      confirmButton.disabled = true;
+      cancelButton.disabled = false;
+      closeButton.disabled = false;
+      cancelButton.textContent = "Close";
+      cancelButton.onclick = closeDialog;
+      closeButton.onclick = closeDialog;
+      if (feedback) {
+        feedback.hidden = false;
+        feedback.dataset.level = "critical";
+        feedback.textContent = message;
+      }
+    },
+    dismiss() {
+      settled = true;
+      closeDialog();
+    }
+  };
+  return manager;
+}
+
+export function initializePresentation(documentRef = document, windowRef = globalThis) {
+  const topbar = documentRef.getElementById("siteNav");
+  const syncTopbar = () => {
+    if (topbar) topbar.dataset.compact = String((windowRef.scrollY || 0) > 24);
+  };
+  syncTopbar();
+  windowRef.addEventListener?.("scroll", syncTopbar, { passive: true });
+
+  const reveals = [...documentRef.querySelectorAll("[data-reveal]")];
+  const reducedMotion = windowRef.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+  if (reducedMotion || typeof windowRef.IntersectionObserver !== "function") {
+    for (const element of reveals) element.classList.add("is-visible");
+    return;
+  }
+
+  documentRef.body.classList.add("motion-enabled");
+  const observer = new windowRef.IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.add("is-visible");
+      observer.unobserve(entry.target);
+    }
+  }, { threshold: 0.16 });
+  for (const element of reveals) observer.observe(element);
+
+  const coarsePointer = windowRef.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+  const hero = documentRef.getElementById("top");
+  const video = documentRef.getElementById("aquariumVideo");
+  if (!coarsePointer && hero && video) {
+    let frameRequested = false;
+    const updateParallax = () => {
+      frameRequested = false;
+      const rect = hero.getBoundingClientRect();
+      const viewportHeight = windowRef.innerHeight || 800;
+      const progress = Math.max(-1, Math.min(1, (viewportHeight / 2 - (rect.top + rect.height / 2)) / viewportHeight));
+      video.style.setProperty("--parallax-y", `${Math.round(progress * 24)}px`);
+    };
+    const requestParallax = () => {
+      if (frameRequested) return;
+      frameRequested = true;
+      windowRef.requestAnimationFrame(updateParallax);
+    };
+    requestParallax();
+    windowRef.addEventListener("scroll", requestParallax, { passive: true });
+  }
 }
 
 function resetTelemetry(documentRef) {
@@ -363,7 +561,7 @@ export function createDashboardController({
   documentRef = document,
   fetchImpl = fetch,
   storage = defaultStorage(),
-  confirmImpl = globalThis.confirm,
+  confirmImpl = null,
   chartFactory = globalThis.Chart
 } = {}) {
   const state = {
@@ -377,9 +575,13 @@ export function createDashboardController({
     monitorRequestId: 0,
     commandRequestId: 0,
     monitoringKey: null,
-    monitoringPromise: null
+    monitoringPromise: null,
+    scheduleUid: null,
+    lastFeedingAt: null
   };
   const chart = createChart(documentRef, chartFactory);
+  const commandDialog = confirmImpl ? null : createCommandDialog(documentRef);
+  const resolvedConfirm = confirmImpl ?? commandDialog?.confirm.bind(commandDialog) ?? globalThis.confirm;
   let feedingAnimationTimer = null;
 
   function stopFeedingAnimation() {
@@ -454,12 +656,42 @@ export function createDashboardController({
         token
       });
       if (!isCurrentView(viewEpoch, token, deviceUid) || requestId !== state.commandRequestId) return [];
+      const latestFeeding = commands.find((command) => command.command_type === "FEED_NOW");
+      state.lastFeedingAt = latestFeeding?.completed_at ?? latestFeeding?.created_at ?? null;
       renderCommands(documentRef.getElementById("commandHistory"), commands);
       return commands;
     } catch (error) {
       if (!isCurrentView(viewEpoch, token, deviceUid) || requestId !== state.commandRequestId) return [];
       if (error.status === 401) logout("Your operator session expired. Please sign in again.");
       else setNotice(documentRef.getElementById("commandMessage"), `Command history failed: ${error.message}`, "critical");
+      return [];
+    }
+  }
+
+  async function refreshSchedule() {
+    const viewEpoch = state.viewEpoch;
+    const token = state.token;
+    const deviceUid = state.deviceUid;
+    if (!token) {
+      renderNextSchedule(documentRef, []);
+      state.scheduleUid = null;
+      return [];
+    }
+    try {
+      const schedules = await requestJson(`/devices/${encodeURIComponent(deviceUid)}/schedules`, {
+        fetchImpl,
+        token
+      });
+      if (!isCurrentView(viewEpoch, token, deviceUid)) return [];
+      renderNextSchedule(documentRef, schedules);
+      state.scheduleUid = deviceUid;
+      return schedules;
+    } catch {
+      if (!isCurrentView(viewEpoch, token, deviceUid)) return [];
+      const timeElement = documentRef.getElementById("nextFeedTime");
+      const nameElement = documentRef.getElementById("nextFeedName");
+      if (timeElement) timeElement.textContent = "Unavailable";
+      if (nameElement) nameElement.textContent = "Could not load schedule";
       return [];
     }
   }
@@ -494,7 +726,11 @@ export function createDashboardController({
     if (!requestIsCurrent()) return null;
     state.online = Boolean(status?.online);
     updateControlAvailability();
-    if (token) await refreshCommands();
+    if (token) {
+      const requests = [refreshCommands()];
+      if (state.scheduleUid !== deviceUid) requests.push(refreshSchedule());
+      await Promise.all(requests);
+    }
     return status;
   }
 
@@ -572,16 +808,23 @@ export function createDashboardController({
   function logout(message = "Signed out. Sign in to resume monitoring.") {
     invalidateView();
     stopFeedingAnimation();
+    commandDialog?.dismiss();
     state.token = null;
     state.deviceId = null;
     state.online = false;
     state.demo = false;
+    state.scheduleUid = null;
+    state.lastFeedingAt = null;
     clearOperatorSession(storage);
     setAuthenticated(false);
     resetTelemetry(documentRef);
     clearChart(chart);
     setHealth(documentRef.getElementById("systemHealth"), "unknown", "Sign In Required");
     setButlerState(documentRef, "ready", "Standing by", "Sign in when you are ready to care for your aquarium.");
+    const nextFeedTime = documentRef.getElementById("nextFeedTime");
+    const nextFeedName = documentRef.getElementById("nextFeedName");
+    if (nextFeedTime) nextFeedTime.textContent = "Sign in";
+    if (nextFeedName) nextFeedName.textContent = "Schedule unavailable";
     setNotice(documentRef.getElementById("monitoringMessage"), "Authenticate to view device telemetry and alerts.");
     renderAlerts(documentRef.getElementById("alertLog"), []);
     renderCommands(documentRef.getElementById("commandHistory"), []);
@@ -615,11 +858,17 @@ export function createDashboardController({
         payload,
         token,
         fetchImpl,
-        confirmImpl
+        confirmImpl: resolvedConfirm,
+        lastFeedingAt: state.lastFeedingAt
       });
       if (!isCurrentView(viewEpoch, token, deviceUid)) return result;
       if (!result.cancelled) {
-        setNotice(documentRef.getElementById("commandMessage"), `Command ${result.command.id} accepted.`, "normal");
+        commandDialog?.complete();
+        setNotice(
+          documentRef.getElementById("commandMessage"),
+          `Command ${result.command.id} accepted at ${formatTime(new Date().toISOString())}.`,
+          "normal"
+        );
         if (commandType === "FEED_NOW") {
           const completed = String(result.command.status).toUpperCase() === "COMPLETED";
           setButlerState(
@@ -642,6 +891,7 @@ export function createDashboardController({
       if (error.status === 401) logout("Your operator session expired. Please sign in again.");
       else {
         setNotice(documentRef.getElementById("commandMessage"), `Command failed: ${error.message}`, "critical");
+        commandDialog?.fail(`Command failed: ${error.message}`);
         if (commandType === "FEED_NOW") {
           stopFeedingAnimation();
           setButlerState(documentRef, "error", "Feeding needs attention", error.message);
@@ -694,10 +944,13 @@ export function createDashboardController({
     documentRef.getElementById("deviceSelect")?.addEventListener("change", (event) => {
       invalidateView();
       stopFeedingAnimation();
+      commandDialog?.dismiss();
       const selected = event.currentTarget.selectedOptions[0];
       state.deviceUid = event.currentTarget.value;
       state.deviceId = selected?.dataset.deviceId ? Number(selected.dataset.deviceId) : null;
       state.online = false;
+      state.scheduleUid = null;
+      state.lastFeedingAt = null;
       resetTelemetry(documentRef);
       clearChart(chart);
       renderAlerts(documentRef.getElementById("alertLog"), []);
@@ -723,6 +976,7 @@ export function createDashboardController({
   }
 
   async function initialize() {
+    initializePresentation(documentRef, documentRef.defaultView ?? globalThis);
     bindEvents();
     setAuthenticated(false);
     updateControlAvailability();
