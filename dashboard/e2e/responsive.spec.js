@@ -10,6 +10,7 @@ for (const viewport of viewports) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Feed Smarter. Worry Less." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Feeding schedule" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Dashboard sections" })).toBeVisible();
 
     const layout = await page.evaluate(() => {
@@ -33,6 +34,9 @@ for (const viewport of viewports) {
         actions: rectangle(".hero-primary-actions"),
         butler: rectangle(".scene-butler"),
         navigation: rectangle(".quick-nav"),
+        schedule: rectangle("#schedule"),
+        scheduleForm: rectangle("#scheduleForm"),
+        scheduleList: rectangle(".schedule-list-shell"),
         brokenImages: [...document.images]
           .filter((image) => !image.complete || image.naturalWidth === 0)
           .map((image) => image.currentSrc || image.src)
@@ -41,12 +45,17 @@ for (const viewport of viewports) {
 
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
     expect(layout.brokenImages).toEqual([]);
-    for (const region of [layout.hero, layout.actions, layout.butler, layout.navigation]) {
+    for (const region of [layout.hero, layout.actions, layout.butler, layout.navigation, layout.schedule]) {
       expect(region).not.toBeNull();
       expect(region.left).toBeGreaterThanOrEqual(0);
       expect(region.right).toBeLessThanOrEqual(layout.clientWidth);
       expect(region.width).toBeGreaterThan(0);
       expect(region.height).toBeGreaterThan(0);
+    }
+    if (viewport.name === "mobile") {
+      expect(layout.scheduleList.top).toBeGreaterThanOrEqual(layout.scheduleForm.bottom - 1);
+    } else {
+      expect(layout.scheduleList.left).toBeGreaterThanOrEqual(layout.scheduleForm.right - 1);
     }
   });
 }

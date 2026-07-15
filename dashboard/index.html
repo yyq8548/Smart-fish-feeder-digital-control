@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f2f1ec" />
   <meta name="description" content="Secure cloud control board for an ESP32 smart fish feeder." />
   <title>Smart Fish Feeder Control Board</title>
-  <link rel="stylesheet" href="style.css?v=accounts-1" />
+  <link rel="stylesheet" href="style.css?v=schedules-1" />
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -30,6 +30,7 @@
       <nav class="quick-nav" aria-label="Dashboard sections">
         <a href="#top">Product</a>
         <a href="#overview">Live Data</a>
+        <a href="#schedule">Schedule</a>
         <a href="#operations">Controls</a>
         <a href="#activity">Activity</a>
         <a href="#alerts">Alerts</a>
@@ -366,6 +367,70 @@
       </div>
     </section>
 
+    <section class="panel schedule-panel" id="schedule" aria-labelledby="schedule-heading">
+      <div class="panel-header schedule-header">
+        <div class="heading-with-icon">
+          <span class="section-icon soft-aqua" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16M5 5h14v16H5V5Zm4 7h2v2H9v-2Zm5 0h2v2h-2v-2Zm-5 4h2v2H9v-2Z" /></svg>
+          </span>
+          <div>
+            <p class="eyebrow">Automatic care</p>
+            <h2 id="schedule-heading">Feeding schedule</h2>
+            <p>Create recurring feedings for the selected physical feeder. Times use the timezone you choose.</p>
+          </div>
+        </div>
+        <span class="history-chip" id="scheduleCount">No schedules</span>
+      </div>
+
+      <div class="schedule-layout">
+        <form id="scheduleForm" class="schedule-form" aria-label="Create feeding schedule">
+          <div class="schedule-form-title">
+            <span class="schedule-step">01</span>
+            <div><strong>Add a feeding time</strong><small>Schedules run automatically on the selected feeder.</small></div>
+          </div>
+          <label class="schedule-name-field">
+            <span>Schedule name</span>
+            <input name="name" maxlength="120" value="Daily feeding" required />
+          </label>
+          <label>
+            <span>Feeding time</span>
+            <input name="time" type="time" value="09:00" required />
+          </label>
+          <label>
+            <span>Timezone</span>
+            <input name="timezone" value="UTC" maxlength="64" required />
+          </label>
+          <label>
+            <span>Grace period</span>
+            <span class="schedule-input-unit"><input name="grace_minutes" type="number" min="1" max="180" value="10" required /><i>min</i></span>
+          </label>
+          <fieldset class="schedule-days">
+            <legend>Repeat on</legend>
+            <label><input type="checkbox" name="days_of_week" value="0" checked /><span>Mon</span></label>
+            <label><input type="checkbox" name="days_of_week" value="1" checked /><span>Tue</span></label>
+            <label><input type="checkbox" name="days_of_week" value="2" checked /><span>Wed</span></label>
+            <label><input type="checkbox" name="days_of_week" value="3" checked /><span>Thu</span></label>
+            <label><input type="checkbox" name="days_of_week" value="4" checked /><span>Fri</span></label>
+            <label><input type="checkbox" name="days_of_week" value="5" checked /><span>Sat</span></label>
+            <label><input type="checkbox" name="days_of_week" value="6" checked /><span>Sun</span></label>
+          </fieldset>
+          <label class="schedule-enabled"><input name="enabled" type="checkbox" checked /><span>Start this schedule immediately</span></label>
+          <button class="button primary schedule-submit" type="submit" disabled>Add schedule</button>
+          <p id="scheduleMessage" class="notice" aria-live="polite" hidden></p>
+        </form>
+
+        <div class="schedule-list-shell">
+          <div class="schedule-list-heading">
+            <div><span class="schedule-step">02</span><strong>Saved schedules</strong></div>
+            <small>Pause a schedule without losing its settings.</small>
+          </div>
+          <div id="scheduleList" class="schedule-list" aria-live="polite">
+            <p class="empty-state">Sign in and select a feeder to manage automatic feeding.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div class="operations-grid" id="operations">
       <section class="panel controls-panel" aria-labelledby="controls-heading">
         <div class="panel-header compact">
@@ -531,6 +596,6 @@
     </div>
   </dialog>
 
-  <script type="module" src="app.js?v=accounts-1"></script>
+  <script type="module" src="app.js?v=schedules-1"></script>
 </body>
 </html>
