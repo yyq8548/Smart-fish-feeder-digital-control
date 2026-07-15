@@ -10,6 +10,7 @@ const {
   TOKEN_STORAGE_KEY,
   authenticateOperator,
   clearOperatorSession,
+  createCommandDialog,
   createDashboardController,
   formatTime,
   issueDeviceCommand,
@@ -18,6 +19,7 @@ const {
   refreshDashboard,
   renderAlerts,
   renderCommands,
+  renderNextSchedule,
   requestJson,
   setHealth,
   startDashboard
@@ -54,6 +56,7 @@ function installDom() {
       </aside>
     </section>
     <p id="loginMessage" hidden></p><p id="controlState"></p><p id="commandMessage" hidden></p>
+    <strong id="nextFeedTime"></strong><small id="nextFeedName"></small>
     <input id="feedDuration" value="1000" data-duration-control disabled>
     <button type="button" data-command="FEED_NOW" data-duration-input="feedDuration" disabled>Feed</button>
     <input id="cleanDuration" value="1000" data-duration-control disabled>
@@ -61,13 +64,26 @@ function installDom() {
     <button type="button" data-command="SET_COOLING" data-mode="AUTO" disabled>Auto</button>
     <button type="button" data-scene-command="FEED_NOW" data-duration-input="feedDuration" disabled>Scene feed</button>
     <button type="button" data-scene-command="CLEAN_PUMP" data-duration-input="cleanDuration" disabled>Scene clean</button>
-    <div id="commandHistory"></div>`;
+    <div id="commandHistory"></div>
+    <dialog id="commandDialog" aria-labelledby="commandDialogTitle" aria-describedby="commandDialogDescription">
+      <button id="commandDialogClose" type="button">Close</button>
+      <h2 id="commandDialogTitle"></h2><p id="commandDialogDescription"></p>
+      <span id="commandDialogDevice"></span><span id="commandDialogAction"></span>
+      <span id="commandDialogDuration"></span><span id="commandDialogLastFeed"></span>
+      <p id="commandDialogFeedback" hidden></p>
+      <button id="commandDialogCancel" type="button">Cancel</button>
+      <button id="commandDialogConfirm" type="button"><span>Confirm command</span></button>
+    </dialog>`;
 }
 
 beforeEach(() => {
   installDom();
   document.getElementById("aquariumVideo").play = vi.fn().mockResolvedValue(undefined);
   document.getElementById("aquariumVideo").pause = vi.fn();
+  const dialog = document.getElementById("commandDialog");
+  Object.defineProperty(dialog, "open", { configurable: true, writable: true, value: false });
+  dialog.showModal = vi.fn(() => { dialog.open = true; });
+  dialog.close = vi.fn(() => { dialog.open = false; });
   sessionStorage.clear();
   vi.restoreAllMocks();
 });
@@ -359,6 +375,76 @@ describe("operator controller", () => {
     await vi.waitFor(() => expect(document.getElementById("aquariumPlayButton").textContent).toContain("Play"));
     expect(document.getElementById("conciergeShowcase").dataset.playing).toBe("false");
     expect(document.querySelector(".aquarium-hero").dataset.playing).toBe("false");
+  });
+
+  it("renders the next active feeding schedule without changing the API shape", () => {
+    expect(renderNextSchedule(document, [])).toBeNull();
+    expect(document.getElementById("nextFeedTime").textContent).toBe("Not scheduled");
+    const schedule = renderNextSchedule(document, [{
+      id: 4,
+      name: "Evening meal",
+      hour: 18,
+      minute: 5,
+      timezone: "America/New_York",
+      enabled: true
+    }]);
+    expect(schedule.id).toBe(4);
+    expect(document.getElementById("nextFeedTime").textContent).toBe("6:05 PM");
+    expect(document.getElementById("nextFeedName").textContent).toContain("Evening meal");
+  });
+
+  it("builds an accessible command dialog that waits for explicit confirmation", async () => {
+    const manager = createCommandDialog(document);
+    const trigger = document.querySelector("[data-command='FEED_NOW']");
+    trigger.disabled = false;
+    trigger.focus();
+    const decision = manager.confirm("Feed now?", {
+      commandType: "FEED_NOW",
+      deviceUid: "feeder-001",
+      payload: { duration_ms: 1500 },
+      lastFeedingAt: "2026-01-01T12:00:00Z"
+    });
+    expect(document.getElementById("commandDialog").open).toBe(true);
+    expect(document.getElementById("commandDialogDevice").textContent).toBe("feeder-001");
+    expect(document.getElementById("commandDialogDuration").textContent).toBe("1500 ms");
+    document.getElementById("commandDialogConfirm").click();
+    await expect(decision).resolves.toBe(true);
+    expect(document.getElementById("commandDialogCancel").disabled).toBe(true);
+    expect(document.getElementById("commandDialogFeedback").textContent).toContain("signed command");
+    manager.complete();
+    expect(document.getElementById("commandDialog").open).toBe(false);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("keeps the command dialog open when the device rejects a command", async () => {
+    const baseApi = controllerApi();
+    const fetchImpl = vi.fn(async (url, options) => {
+      if (url.includes("/commands") && options.method === "POST") {
+        return response({ detail: "Device rejected the command" }, 409);
+      }
+      return baseApi(url, options);
+    });
+    const controller = createDashboardController({
+      documentRef: document,
+      fetchImpl,
+      storage: sessionStorage,
+      chartFactory: null
+    });
+
+    await controller.initialize();
+    await controller.login("alice", "password");
+    document.querySelector("[data-command='FEED_NOW']").click();
+    await vi.waitFor(() => expect(document.getElementById("commandDialog").open).toBe(true));
+    document.getElementById("commandDialogConfirm").click();
+
+    await vi.waitFor(() => expect(document.getElementById("commandDialogFeedback").textContent)
+      .toContain("Device rejected the command"));
+    expect(document.getElementById("commandDialog").open).toBe(true);
+    expect(document.getElementById("commandDialogCancel").disabled).toBe(false);
+    expect(document.getElementById("commandDialogConfirm").disabled).toBe(true);
+
+    document.getElementById("commandDialogCancel").click();
+    expect(document.getElementById("commandDialog").open).toBe(false);
   });
 
   it("binds login, device selection, confirmed commands, and logout", async () => {

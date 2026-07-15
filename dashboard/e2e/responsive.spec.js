@@ -30,7 +30,7 @@ for (const viewport of viewports) {
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
         hero: rectangle(".aquarium-hero"),
-        actions: rectangle(".scene-actions"),
+        actions: rectangle(".hero-primary-actions"),
         butler: rectangle(".scene-butler"),
         navigation: rectangle(".quick-nav"),
         brokenImages: [...document.images]
@@ -50,3 +50,26 @@ for (const viewport of viewports) {
     }
   });
 }
+
+test("reduced motion keeps critical content visible and disables parallax", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const presentation = await page.evaluate(() => {
+    const heroHeading = document.querySelector(".aquarium-copy .mask-line-inner");
+    const aquariumVideo = document.querySelector(".aquarium-backdrop");
+    const revealSection = document.querySelector("[data-reveal]");
+    return {
+      motionEnabled: document.body.classList.contains("motion-enabled"),
+      headingTransform: getComputedStyle(heroHeading).transform,
+      videoTransform: getComputedStyle(aquariumVideo).transform,
+      revealOpacity: getComputedStyle(revealSection).opacity
+    };
+  });
+
+  expect(presentation.motionEnabled).toBe(false);
+  expect(presentation.headingTransform).toBe("none");
+  expect(presentation.videoTransform).toBe("none");
+  expect(presentation.revealOpacity).toBe("1");
+});

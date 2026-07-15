@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#f2f1ec" />
   <meta name="description" content="Secure cloud control board for an ESP32 smart fish feeder." />
   <title>Smart Fish Feeder Control Board</title>
-  <link rel="stylesheet" href="style.css?v=halo-1" />
+  <link rel="stylesheet" href="style.css?v=halo-2" />
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
   <div class="ambient ambient-two" aria-hidden="true"></div>
 
   <main class="container">
-    <header class="topbar">
+    <header class="topbar" id="siteNav">
       <a class="brand" href="#top" aria-label="Smart Fish Feeder home">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 48 48" role="img">
@@ -28,10 +28,10 @@
         </span>
       </a>
       <nav class="quick-nav" aria-label="Dashboard sections">
-        <a href="#top">Aquarium</a>
-        <a href="#dashboard">Dashboard</a>
-        <a href="#overview">Overview</a>
+        <a href="#top">Product</a>
+        <a href="#overview">Live Data</a>
         <a href="#operations">Controls</a>
+        <a href="#activity">Activity</a>
         <a href="#alerts">Alerts</a>
       </nav>
       <div class="topbar-status">
@@ -44,11 +44,14 @@
     </header>
 
     <section class="editorial-intro" aria-labelledby="intro-heading">
-      <div>
+      <div data-reveal>
         <p class="editorial-kicker">Connected aquarium care</p>
-        <h1 id="intro-heading">Smart care for<br />what lives below.</h1>
+        <h1 id="intro-heading" aria-label="Smart care for what lives below.">
+          <span class="mask-line" aria-hidden="true"><span class="mask-line-inner">Smart care for</span></span>
+          <span class="mask-line" aria-hidden="true"><span class="mask-line-inner">what lives below.</span></span>
+        </h1>
       </div>
-      <div class="editorial-summary">
+      <div class="editorial-summary" data-reveal>
         <p>A secure control board for consistent feeding, live conditions, and confident care from anywhere.</p>
         <span class="editorial-status"><i></i> ESP32 cloud control</span>
       </div>
@@ -70,15 +73,26 @@
           </button>
         </div>
 
-        <div class="hero-copy aquarium-copy">
-          <h2 id="hero-heading">Feed Smarter.<br /><span>Worry Less.</span></h2>
+        <div class="hero-copy aquarium-copy" data-reveal>
+          <h2 id="hero-heading" aria-label="Feed Smarter. Worry Less.">
+            <span class="mask-line" aria-hidden="true"><span class="mask-line-inner">Feed Smarter.</span></span>
+            <span class="mask-line" aria-hidden="true"><span class="mask-line-inner">Worry Less.</span></span>
+          </h2>
           <p class="subtitle">
             Monitor food temperature, feeding schedules, pump status, and alerts from one secure dashboard.
           </p>
-          <a class="dashboard-scroll" href="#dashboard">
-            <span>Open full control board</span>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 7 6 6 6-6" /></svg>
-          </a>
+          <div class="hero-primary-actions">
+            <button class="hero-feed-action" type="button" data-scene-command="FEED_NOW"
+              data-duration-input="feedDuration" disabled>
+              <span>Feed now</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 9 0m-4-4 4 4-4 4" /></svg>
+            </button>
+            <div class="next-feed-card" aria-live="polite">
+              <span>Next feeding</span>
+              <strong id="nextFeedTime">Sign in</strong>
+              <small id="nextFeedName">Schedule unavailable</small>
+            </div>
+          </div>
         </div>
 
         <article class="scene-glass scene-card scene-temperature" id="sceneTemperatureCard">
@@ -104,23 +118,6 @@
           <span class="scene-card-dot violet"></span>
           <span><small>Last device event</small><strong id="sceneLastSeen">--</strong></span>
         </article>
-
-        <div class="scene-actions" aria-label="Quick device actions">
-          <button class="scene-glass scene-action feed" type="button" data-scene-command="FEED_NOW"
-            data-duration-input="feedDuration" disabled>
-            <span class="scene-action-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M7 5h10l1 5v8H6v-8l1-5Zm2 4h6m-5 9v2m4-2v2" /></svg>
-            </span>
-            <span><small>Dispense and reverse</small><strong>Feed now</strong></span>
-          </button>
-          <button class="scene-glass scene-action" type="button" data-scene-command="CLEAN_PUMP"
-            data-duration-input="cleanDuration" disabled>
-            <span class="scene-action-icon clean" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" /></svg>
-            </span>
-            <span><small>Reverse cycle</small><strong>Clean pump</strong></span>
-          </button>
-        </div>
 
         <div class="scene-glass butler-card scene-butler" id="butlerCard" data-state="ready" aria-live="polite">
           <span class="butler-avatar" aria-hidden="true">
@@ -208,8 +205,9 @@
     </p>
     <p id="monitoringMessage" class="notice wide-notice" aria-live="polite" hidden></p>
 
-    <section class="section-heading" id="overview" aria-labelledby="overview-heading">
+    <section class="section-heading" id="overview" aria-labelledby="overview-heading" data-reveal>
       <div>
+        <p class="section-index">02 / Live overview</p>
         <h2 id="overview-heading">Feeder at a glance</h2>
       </div>
       <span class="refresh-note"><i></i> Refreshes every 2 seconds</span>
@@ -373,7 +371,7 @@
         <p id="commandMessage" class="notice" aria-live="polite" hidden></p>
       </section>
 
-      <section class="panel history-panel" aria-labelledby="commands-heading">
+      <section class="panel history-panel" id="activity" aria-labelledby="commands-heading">
         <div class="panel-header compact">
           <div class="heading-with-icon">
             <span class="section-icon soft-blue" aria-hidden="true">
@@ -419,6 +417,38 @@
     </footer>
   </main>
 
-  <script type="module" src="app.js?v=immersive-1"></script>
+  <button class="quick-feed-cta" type="button" data-command="FEED_NOW"
+    data-duration-input="feedDuration" disabled>
+    <span>Quick feed</span>
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 9 0m-4-4 4 4-4 4" /></svg>
+  </button>
+
+  <dialog class="command-dialog" id="commandDialog" aria-labelledby="commandDialogTitle"
+    aria-describedby="commandDialogDescription">
+    <div class="command-dialog-shell">
+      <div class="command-dialog-topline">
+        <span>Physical device command</span>
+        <button class="dialog-icon-button" id="commandDialogClose" type="button" aria-label="Close confirmation dialog">&times;</button>
+      </div>
+      <h2 id="commandDialogTitle">Confirm command</h2>
+      <p id="commandDialogDescription">Review the physical action before sending it.</p>
+      <dl class="command-dialog-details">
+        <div><dt>Device</dt><dd id="commandDialogDevice">--</dd></div>
+        <div><dt>Action</dt><dd id="commandDialogAction">--</dd></div>
+        <div><dt>Duration</dt><dd id="commandDialogDuration">--</dd></div>
+        <div><dt>Last feeding</dt><dd id="commandDialogLastFeed">--</dd></div>
+      </dl>
+      <p class="dialog-feedback" id="commandDialogFeedback" role="status" aria-live="polite" hidden></p>
+      <div class="command-dialog-actions">
+        <button class="button subtle" id="commandDialogCancel" type="button">Cancel</button>
+        <button class="button primary" id="commandDialogConfirm" type="button">
+          <span>Confirm command</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 9 0m-4-4 4 4-4 4" /></svg>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js?v=halo-2"></script>
 </body>
 </html>
