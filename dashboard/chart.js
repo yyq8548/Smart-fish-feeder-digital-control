@@ -45,22 +45,22 @@ export class TelemetryLineChart {
       const fraction = step / 5;
       const y = margin.top + plotHeight * fraction;
       const value = yMax - (yMax - yMin) * fraction;
-      context.strokeStyle = "rgba(158, 205, 210, 0.12)";
+      context.strokeStyle = "rgba(16, 17, 15, 0.1)";
       context.beginPath();
       context.moveTo(margin.left, y);
       context.lineTo(margin.left + plotWidth, y);
       context.stroke();
-      context.fillStyle = "#86a2ad";
+      context.fillStyle = "#777a72";
       context.textAlign = "right";
       context.fillText(value.toFixed(1), margin.left - 9, y);
     }
 
-    context.fillStyle = "#a9c0c8";
+    context.fillStyle = "#343730";
     context.textAlign = "left";
     context.fillText("Reservoir temperature (°C)", margin.left, 14);
 
     if (finiteValues.length === 0) {
-      context.fillStyle = "#86a2ad";
+      context.fillStyle = "#777a72";
       context.textAlign = "center";
       context.fillText("Waiting for telemetry", margin.left + plotWidth / 2, margin.top + plotHeight / 2);
       return;
@@ -68,7 +68,7 @@ export class TelemetryLineChart {
 
     const xFor = (index) => margin.left + (values.length <= 1 ? plotWidth / 2 : (index / (values.length - 1)) * plotWidth);
     const yFor = (value) => margin.top + ((yMax - value) / (yMax - yMin)) * plotHeight;
-    context.strokeStyle = "#16a99c";
+    context.strokeStyle = "#1a6f65";
     context.lineWidth = 3;
     context.lineJoin = "round";
     context.lineCap = "round";
@@ -87,8 +87,8 @@ export class TelemetryLineChart {
     });
     context.stroke();
 
-    context.fillStyle = "#ffffff";
-    context.strokeStyle = "#16a99c";
+    context.fillStyle = "#c8ff63";
+    context.strokeStyle = "#10110f";
     context.lineWidth = 2;
     values.forEach((value, index) => {
       if (value === null || !Number.isFinite(value)) return;
@@ -100,7 +100,7 @@ export class TelemetryLineChart {
 
     const labelIndexes = [...new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1])]
       .filter((index) => index >= 0 && labels[index]);
-    context.fillStyle = "#86a2ad";
+    context.fillStyle = "#777a72";
     context.textBaseline = "top";
     labelIndexes.forEach((index) => {
       context.textAlign = index === 0 ? "left" : index === labels.length - 1 ? "right" : "center";

@@ -252,6 +252,11 @@ function setButlerState(documentRef, state, status, message, { feeding = false }
   if (messageElement) messageElement.textContent = message;
 }
 
+function setFeedingAnimation(documentRef, feeding) {
+  const showcase = documentRef.getElementById("conciergeShowcase");
+  if (showcase) showcase.dataset.feeding = String(feeding);
+}
+
 function playAquariumMoment(documentRef) {
   const video = documentRef.getElementById("aquariumVideo");
   const showcase = documentRef.getElementById("conciergeShowcase");
@@ -375,6 +380,23 @@ export function createDashboardController({
     monitoringPromise: null
   };
   const chart = createChart(documentRef, chartFactory);
+  let feedingAnimationTimer = null;
+
+  function stopFeedingAnimation() {
+    if (feedingAnimationTimer !== null) {
+      globalThis.clearTimeout(feedingAnimationTimer);
+      feedingAnimationTimer = null;
+    }
+    setFeedingAnimation(documentRef, false);
+  }
+
+  function scheduleFeedingAnimationStop(durationMs) {
+    if (feedingAnimationTimer !== null) globalThis.clearTimeout(feedingAnimationTimer);
+    feedingAnimationTimer = globalThis.setTimeout(() => {
+      feedingAnimationTimer = null;
+      setFeedingAnimation(documentRef, false);
+    }, durationMs);
+  }
 
   function invalidateView() {
     state.viewEpoch += 1;
@@ -549,6 +571,7 @@ export function createDashboardController({
 
   function logout(message = "Signed out. Sign in to resume monitoring.") {
     invalidateView();
+    stopFeedingAnimation();
     state.token = null;
     state.deviceId = null;
     state.online = false;
@@ -582,6 +605,7 @@ export function createDashboardController({
         state.demo ? "Simulating the feeder routine." : "Sending a signed command to your ESP32.",
         { feeding: true }
       );
+      scheduleFeedingAnimationStop(payload.duration_ms ?? DEFAULT_ACTUATION_DURATION_MS);
       playAquariumMoment(documentRef);
     }
     try {
@@ -603,11 +627,13 @@ export function createDashboardController({
             "success",
             completed ? "Feeding complete" : "Feeding command sent",
             completed ? "Your aquarium has been cared for." : "Your concierge is waiting for the device result.",
-            { feeding: true }
+            { feeding: !completed }
           );
+          if (completed) stopFeedingAnimation();
         }
         await refreshCommands();
       } else if (commandType === "FEED_NOW") {
+        stopFeedingAnimation();
         setButlerState(documentRef, "ready", "Standing by", "Feeding was cancelled safely.");
       }
       return result;
@@ -617,6 +643,7 @@ export function createDashboardController({
       else {
         setNotice(documentRef.getElementById("commandMessage"), `Command failed: ${error.message}`, "critical");
         if (commandType === "FEED_NOW") {
+          stopFeedingAnimation();
           setButlerState(documentRef, "error", "Feeding needs attention", error.message);
         }
       }
@@ -666,6 +693,7 @@ export function createDashboardController({
     });
     documentRef.getElementById("deviceSelect")?.addEventListener("change", (event) => {
       invalidateView();
+      stopFeedingAnimation();
       const selected = event.currentTarget.selectedOptions[0];
       state.deviceUid = event.currentTarget.value;
       state.deviceId = selected?.dataset.deviceId ? Number(selected.dataset.deviceId) : null;

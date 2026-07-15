@@ -47,6 +47,7 @@ jobs:
   firmware:
     runs-on: ubuntu-latest
     env:
+      WOKWI_CI_ENABLED: ${{ vars.WOKWI_CI_ENABLED }}
       WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +62,7 @@ jobs:
           cp firmware/esp32_mqtt/feeder_secrets.example.h firmware/esp32_mqtt/feeder_secrets.h
           arduino-cli compile --fqbn esp32:esp32:esp32 --build-path /tmp/esp32-tls firmware/esp32_mqtt
       - name: Run Wokwi sensor and actuator scenario
-        if: env.WOKWI_CLI_TOKEN != ''
+        if: env.WOKWI_CI_ENABLED == 'true' && env.WOKWI_CLI_TOKEN != ''
         uses: wokwi/wokwi-ci-action@v1
         with:
           token: ${{ secrets.WOKWI_CLI_TOKEN }}
@@ -69,20 +70,24 @@ jobs:
           timeout: 45000
           scenario: verify_feeder.yaml
       - name: Report optional Wokwi runtime test
-        if: env.WOKWI_CLI_TOKEN == ''
-        run: echo "Wokwi runtime test skipped; configure the WOKWI_CLI_TOKEN repository secret to enable it."
+        if: env.WOKWI_CI_ENABLED != 'true' || env.WOKWI_CLI_TOKEN == ''
+        run: |
+          echo "Wokwi runtime test skipped by configuration; firmware compilation still passed."
+          echo "### Wokwi runtime test" >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipped by configuration. Set the repository variable \`WOKWI_CI_ENABLED=true\` and configure \`WOKWI_CLI_TOKEN\` when virtual-hardware quota is available." >> "$GITHUB_STEP_SUMMARY"
 
   closed-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      WOKWI_CI_ENABLED: ${{ vars.WOKWI_CI_ENABLED }}
       WOKWI_CLI_TOKEN: ${{ secrets.WOKWI_CLI_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Detect optional Wokwi token
         id: wokwi
         run: |
-          if [[ -n "$WOKWI_CLI_TOKEN" ]]; then
+          if [[ "$WOKWI_CI_ENABLED" == "true" && -n "$WOKWI_CLI_TOKEN" ]]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -128,7 +133,10 @@ jobs:
           if-no-files-found: ignore
       - name: Report optional closed-loop test
         if: steps.wokwi.outputs.enabled != 'true'
-        run: echo "Closed-loop Wokwi test skipped; configure WOKWI_CLI_TOKEN to enable it."
+        run: |
+          echo "Closed-loop Wokwi test skipped by configuration."
+          echo "### Dashboard-to-Wokwi closed loop" >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipped by configuration. Set the repository variable \`WOKWI_CI_ENABLED=true\` and configure \`WOKWI_CLI_TOKEN\` when virtual-hardware quota is available." >> "$GITHUB_STEP_SUMMARY"
 
   security:
     runs-on: ubuntu-latest

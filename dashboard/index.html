@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#071c2b" />
+  <meta name="theme-color" content="#f2f1ec" />
   <meta name="description" content="Secure cloud control board for an ESP32 smart fish feeder." />
   <title>Smart Fish Feeder Control Board</title>
-  <link rel="stylesheet" href="style.css?v=immersive-1" />
+  <link rel="stylesheet" href="style.css?v=halo-1" />
 </head>
 <body>
   <div class="ambient ambient-one" aria-hidden="true"></div>
@@ -43,6 +43,17 @@
       </div>
     </header>
 
+    <section class="editorial-intro" aria-labelledby="intro-heading">
+      <div>
+        <p class="editorial-kicker">Connected aquarium care</p>
+        <h1 id="intro-heading">Smart care for<br />what lives below.</h1>
+      </div>
+      <div class="editorial-summary">
+        <p>A secure control board for consistent feeding, live conditions, and confident care from anywhere.</p>
+        <span class="editorial-status"><i></i> ESP32 cloud control</span>
+      </div>
+    </section>
+
     <section class="hero aquarium-hero" id="top" data-playing="true" aria-labelledby="hero-heading">
       <video id="aquariumVideo" class="aquarium-backdrop" muted loop autoplay playsinline preload="metadata"
         aria-label="Aquarium scene">
@@ -60,7 +71,7 @@
         </div>
 
         <div class="hero-copy aquarium-copy">
-          <h1 id="hero-heading">Feed Smarter.<br /><span>Worry Less.</span></h1>
+          <h2 id="hero-heading">Feed Smarter.<br /><span>Worry Less.</span></h2>
           <p class="subtitle">
             Monitor food temperature, feeding schedules, pump status, and alerts from one secure dashboard.
           </p>
@@ -68,17 +79,6 @@
             <span>Open full control board</span>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 7 6 6 6-6" /></svg>
           </a>
-        </div>
-
-        <div class="robot-stage" aria-hidden="true">
-          <div class="robot-aura"></div>
-          <figure class="robot-portrait">
-            <img src="assets/robot-butler-cutout.png?v=1" alt="" />
-            <span class="robot-feeder" aria-hidden="true"><i></i></span>
-          </figure>
-          <div class="feeding-particles">
-            <i></i><i></i><i></i><i></i><i></i>
-          </div>
         </div>
 
         <article class="scene-glass scene-card scene-temperature" id="sceneTemperatureCard">
@@ -131,7 +131,7 @@
             </svg>
           </span>
           <span class="butler-copy">
-            <span class="butler-label">Mechanical caretaker</span>
+            <span class="butler-label">Feeder status</span>
             <strong id="butlerStatus">Standing by</strong>
             <small id="butlerMessage">Ready to care for your aquarium.</small>
           </span>
