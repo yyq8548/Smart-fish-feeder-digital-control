@@ -33,23 +33,41 @@ function installDom() {
     <article id="coolingCard"><span id="coolingStatus"></span></article>
     <article id="pumpCard"><span id="pumpStatus"></span></article>
     <article id="heartbeatCard"><span id="lastSeen"></span></article><span id="systemHealth"></span>
+    <article id="sceneTemperatureCard"><span id="sceneTemperature"></span></article>
+    <article id="sceneCoolingCard"><span id="sceneCoolingStatus"></span></article>
+    <article id="scenePumpCard"><span id="scenePumpStatus"></span></article>
+    <article id="sceneHeartbeatCard"><span id="sceneLastSeen"></span></article>
     <p id="monitoringMessage" hidden></p><ul id="alertLog"></ul><canvas id="tempChart"></canvas>
     <form id="loginForm"><input name="username"><input name="password"><button type="submit">Login</button></form>
     <div id="demoAccess"><button id="demoLoginButton" type="button">Try demo</button></div>
     <div id="operatorSession" hidden><span id="operatorUsername"></span><select id="deviceSelect"></select>
       <button id="logoutButton" type="button">Logout</button></div>
     <p id="demoModeBanner" hidden></p>
+    <section class="aquarium-hero" data-playing="true">
+      <aside id="conciergeShowcase" data-feeding="false">
+        <video id="aquariumVideo"></video>
+        <button id="aquariumPlayButton" type="button" aria-pressed="false"><svg><path></path></svg><span>Play aquarium scene</span></button>
+        <div id="butlerCard" data-state="ready">
+          <strong id="butlerStatus">Standing by</strong>
+          <small id="butlerMessage">Ready</small>
+        </div>
+      </aside>
+    </section>
     <p id="loginMessage" hidden></p><p id="controlState"></p><p id="commandMessage" hidden></p>
     <input id="feedDuration" value="1000" data-duration-control disabled>
     <button type="button" data-command="FEED_NOW" data-duration-input="feedDuration" disabled>Feed</button>
     <input id="cleanDuration" value="1000" data-duration-control disabled>
     <button type="button" data-command="CLEAN_PUMP" data-duration-input="cleanDuration" disabled>Clean</button>
     <button type="button" data-command="SET_COOLING" data-mode="AUTO" disabled>Auto</button>
+    <button type="button" data-scene-command="FEED_NOW" data-duration-input="feedDuration" disabled>Scene feed</button>
+    <button type="button" data-scene-command="CLEAN_PUMP" data-duration-input="cleanDuration" disabled>Scene clean</button>
     <div id="commandHistory"></div>`;
 }
 
 beforeEach(() => {
   installDom();
+  document.getElementById("aquariumVideo").play = vi.fn().mockResolvedValue(undefined);
+  document.getElementById("aquariumVideo").pause = vi.fn();
   sessionStorage.clear();
   vi.restoreAllMocks();
 });
@@ -241,7 +259,11 @@ describe("monitoring states", () => {
     });
     expect(status.online).toBe(true);
     expect(document.getElementById("temperature").textContent).toBe("4.3");
+    expect(document.getElementById("sceneTemperature").textContent).toBe("4.3");
+    expect(document.getElementById("sceneCoolingStatus").textContent).toBe("ON");
+    expect(document.getElementById("scenePumpStatus").textContent).toBe("FEEDING");
     expect(document.getElementById("temperatureCard").dataset.level).toBe("normal");
+    expect(document.getElementById("sceneTemperatureCard").dataset.level).toBe("normal");
     expect(document.getElementById("coolingCard").dataset.active).toBe("true");
     expect(document.getElementById("pumpCard").dataset.state).toBe("feeding");
     expect(document.getElementById("heartbeatCard").dataset.online).toBe("true");
@@ -309,6 +331,36 @@ describe("operator controller", () => {
     });
   }
 
+  it("plays and pauses the optional aquarium moment without changing device controls", async () => {
+    const controller = createDashboardController({
+      documentRef: document,
+      fetchImpl: vi.fn(),
+      storage: sessionStorage,
+      chartFactory: null
+    });
+    const video = document.getElementById("aquariumVideo");
+    let paused = true;
+    Object.defineProperty(video, "paused", { configurable: true, get: () => paused });
+    video.play = vi.fn().mockImplementation(() => {
+      paused = false;
+      return Promise.resolve();
+    });
+    video.pause = vi.fn().mockImplementation(() => {
+      paused = true;
+    });
+
+    await controller.initialize();
+    document.getElementById("aquariumPlayButton").click();
+    await vi.waitFor(() => expect(document.getElementById("aquariumPlayButton").textContent).toContain("Pause"));
+    expect(document.getElementById("conciergeShowcase").dataset.playing).toBe("true");
+    expect(document.querySelector("[data-command='FEED_NOW']").disabled).toBe(true);
+
+    document.getElementById("aquariumPlayButton").click();
+    await vi.waitFor(() => expect(document.getElementById("aquariumPlayButton").textContent).toContain("Play"));
+    expect(document.getElementById("conciergeShowcase").dataset.playing).toBe("false");
+    expect(document.querySelector(".aquarium-hero").dataset.playing).toBe("false");
+  });
+
   it("binds login, device selection, confirmed commands, and logout", async () => {
     const fetchImpl = controllerApi();
     const confirmImpl = vi.fn().mockReturnValue(true);
@@ -331,6 +383,7 @@ describe("operator controller", () => {
     expect(document.getElementById("operatorSession").hidden).toBe(false);
     expect(document.getElementById("operatorUsername").textContent).toBe("alice");
     expect(document.querySelector("[data-command='FEED_NOW']").disabled).toBe(false);
+    expect(document.querySelector("[data-scene-command='FEED_NOW']").disabled).toBe(false);
 
     const select = document.getElementById("deviceSelect");
     select.value = "feeder-002";
@@ -341,6 +394,9 @@ describe("operator controller", () => {
     document.getElementById("feedDuration").value = "1500";
     document.querySelector("[data-command='FEED_NOW']").click();
     await vi.waitFor(() => expect(document.getElementById("commandMessage").textContent).toContain("accepted"));
+    expect(document.getElementById("butlerCard").dataset.state).toBe("success");
+    expect(document.getElementById("butlerStatus").textContent).toContain("Feeding command sent");
+    expect(document.getElementById("conciergeShowcase").dataset.feeding).toBe("true");
     expect(confirmImpl).toHaveBeenCalled();
     expect(confirmImpl.mock.calls.at(-1)[0]).toContain("1500 ms");
     const commandPost = fetchImpl.mock.calls.find((call) =>
@@ -348,19 +404,27 @@ describe("operator controller", () => {
     );
     expect(JSON.parse(commandPost[1].body).payload).toEqual({ duration_ms: 1500 });
 
+    document.querySelector("[data-scene-command='FEED_NOW']").click();
+    await vi.waitFor(() => expect(confirmImpl).toHaveBeenCalledTimes(2));
+    expect(confirmImpl.mock.calls.at(-1)[0]).toContain("1500 ms");
+    await vi.waitFor(() => expect(document.querySelector("[data-scene-command='FEED_NOW']").disabled).toBe(false));
+
     document.getElementById("cleanDuration").value = "499";
     document.querySelector("[data-command='CLEAN_PUMP']").click();
     expect(document.getElementById("commandMessage").textContent).toContain("between 500 and 60000 ms");
-    expect(confirmImpl).toHaveBeenCalledTimes(1);
+    expect(confirmImpl).toHaveBeenCalledTimes(2);
 
     document.getElementById("logoutButton").click();
     expect(document.body.dataset.authenticated).toBe("false");
     expect(sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
     expect(document.querySelector("[data-command='FEED_NOW']").disabled).toBe(true);
+    expect(document.querySelector("[data-scene-command='FEED_NOW']").disabled).toBe(true);
     expect(document.getElementById("feedDuration").disabled).toBe(true);
     expect(document.getElementById("temperature").textContent).toBe("--");
+    expect(document.getElementById("sceneTemperature").textContent).toBe("--");
     expect(document.getElementById("systemHealth").textContent).toBe("Sign In Required");
     expect(document.getElementById("monitoringMessage").textContent).toContain("Authenticate");
+    expect(document.getElementById("butlerStatus").textContent).toBe("Standing by");
   });
 
   it("offers one-click demo access and labels simulated controls", async () => {

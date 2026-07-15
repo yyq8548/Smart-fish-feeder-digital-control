@@ -209,17 +209,63 @@ export async function issueDeviceCommand({
 }
 
 function resetTelemetry(documentRef) {
-  for (const id of ["temperature", "coolingStatus", "pumpStatus", "lastSeen"]) {
+  for (const id of [
+    "temperature",
+    "coolingStatus",
+    "pumpStatus",
+    "lastSeen",
+    "sceneTemperature",
+    "sceneCoolingStatus",
+    "scenePumpStatus",
+    "sceneLastSeen"
+  ]) {
     const element = documentRef.getElementById(id);
     if (element) element.textContent = "--";
   }
-  for (const id of ["temperatureCard", "coolingCard", "pumpCard", "heartbeatCard"]) {
+  for (const id of [
+    "temperatureCard",
+    "coolingCard",
+    "pumpCard",
+    "heartbeatCard",
+    "sceneTemperatureCard",
+    "sceneCoolingCard",
+    "scenePumpCard",
+    "sceneHeartbeatCard"
+  ]) {
     const card = documentRef.getElementById(id);
     if (!card) continue;
     delete card.dataset.level;
     delete card.dataset.active;
     delete card.dataset.state;
     delete card.dataset.online;
+  }
+}
+
+function setButlerState(documentRef, state, status, message, { feeding = false } = {}) {
+  const card = documentRef.getElementById("butlerCard");
+  const showcase = documentRef.getElementById("conciergeShowcase");
+  if (card) card.dataset.state = state;
+  if (showcase) showcase.dataset.feeding = String(feeding);
+  const statusElement = documentRef.getElementById("butlerStatus");
+  const messageElement = documentRef.getElementById("butlerMessage");
+  if (statusElement) statusElement.textContent = status;
+  if (messageElement) messageElement.textContent = message;
+}
+
+function playAquariumMoment(documentRef) {
+  const video = documentRef.getElementById("aquariumVideo");
+  const showcase = documentRef.getElementById("conciergeShowcase");
+  if (!video) return;
+  showcase?.setAttribute("data-playing", "true");
+  showcase?.closest?.(".aquarium-hero")?.setAttribute("data-playing", "true");
+  const playResult = video.play?.();
+  if (playResult?.catch) playResult.catch(() => {});
+}
+
+function setTelemetryText(documentRef, ids, value) {
+  for (const id of ids) {
+    const element = documentRef.getElementById(id);
+    if (element) element.textContent = value;
   }
 }
 
@@ -249,18 +295,34 @@ export async function refreshDashboard({
       requestJson(`/alerts?limit=20&device_uid=${encodedUid}`, { fetchImpl, token })
     ]);
     if (!shouldApply()) return null;
-    documentRef.getElementById("temperature").textContent = status.temperature_c === null ? "--" : Number(status.temperature_c).toFixed(1);
-    documentRef.getElementById("coolingStatus").textContent = status.cooling_on === null ? "--" : status.cooling_on ? "ON" : "OFF";
-    documentRef.getElementById("pumpStatus").textContent = status.pump_state || "--";
-    documentRef.getElementById("lastSeen").textContent = formatTime(status.last_seen);
+    setTelemetryText(
+      documentRef,
+      ["temperature", "sceneTemperature"],
+      status.temperature_c === null ? "--" : Number(status.temperature_c).toFixed(1)
+    );
+    setTelemetryText(
+      documentRef,
+      ["coolingStatus", "sceneCoolingStatus"],
+      status.cooling_on === null ? "--" : status.cooling_on ? "ON" : "OFF"
+    );
+    setTelemetryText(documentRef, ["pumpStatus", "scenePumpStatus"], status.pump_state || "--");
+    setTelemetryText(documentRef, ["lastSeen", "sceneLastSeen"], formatTime(status.last_seen));
     const temperatureCard = documentRef.getElementById("temperatureCard");
     const coolingCard = documentRef.getElementById("coolingCard");
     const pumpCard = documentRef.getElementById("pumpCard");
     const heartbeatCard = documentRef.getElementById("heartbeatCard");
+    const sceneTemperatureCard = documentRef.getElementById("sceneTemperatureCard");
+    const sceneCoolingCard = documentRef.getElementById("sceneCoolingCard");
+    const scenePumpCard = documentRef.getElementById("scenePumpCard");
+    const sceneHeartbeatCard = documentRef.getElementById("sceneHeartbeatCard");
     if (temperatureCard) temperatureCard.dataset.level = status.alert_level || "unknown";
     if (coolingCard) coolingCard.dataset.active = String(Boolean(status.cooling_on));
     if (pumpCard) pumpCard.dataset.state = String(status.pump_state || "unknown").toLowerCase();
     if (heartbeatCard) heartbeatCard.dataset.online = String(Boolean(status.online));
+    if (sceneTemperatureCard) sceneTemperatureCard.dataset.level = status.alert_level || "unknown";
+    if (sceneCoolingCard) sceneCoolingCard.dataset.active = String(Boolean(status.cooling_on));
+    if (scenePumpCard) scenePumpCard.dataset.state = String(status.pump_state || "unknown").toLowerCase();
+    if (sceneHeartbeatCard) sceneHeartbeatCard.dataset.online = String(Boolean(status.online));
     setHealth(health, status.alert_level, status.alert_message || (status.online ? "System Normal" : "Device Offline"));
     setNotice(monitoringMessage, status.online ? "" : "Live telemetry is unavailable. Commands are disabled while the device is offline.", "warning");
     const matchingAlerts = deviceId === null ? alerts : alerts.filter((alert) => alert.device_id === deviceId);
@@ -341,7 +403,7 @@ export function createDashboardController({
 
   function updateControlAvailability() {
     const enabled = Boolean(state.token && state.online && !state.busy);
-    for (const button of documentRef.querySelectorAll("[data-command]")) button.disabled = !enabled;
+    for (const button of documentRef.querySelectorAll("[data-command], [data-scene-command]")) button.disabled = !enabled;
     for (const input of documentRef.querySelectorAll("[data-duration-control]")) input.disabled = !enabled;
     const message = !state.token
       ? "Sign in as an operator to issue commands."
@@ -445,6 +507,12 @@ export function createDashboardController({
       state.deviceId = devices.find((device) => device.device_uid === state.deviceUid)?.id ?? null;
       state.demo = user.role === "demo";
       setAuthenticated(true, user.username, user.role);
+      setButlerState(
+        documentRef,
+        "ready",
+        state.demo ? "Demo concierge ready" : "Connected and standing by",
+        state.demo ? "Try a safe simulated feeding." : "Ready to care for your aquarium."
+      );
       setNotice(documentRef.getElementById("loginMessage"), "", "normal");
       await refresh();
       return true;
@@ -490,6 +558,7 @@ export function createDashboardController({
     resetTelemetry(documentRef);
     clearChart(chart);
     setHealth(documentRef.getElementById("systemHealth"), "unknown", "Sign In Required");
+    setButlerState(documentRef, "ready", "Standing by", "Sign in when you are ready to care for your aquarium.");
     setNotice(documentRef.getElementById("monitoringMessage"), "Authenticate to view device telemetry and alerts.");
     renderAlerts(documentRef.getElementById("alertLog"), []);
     renderCommands(documentRef.getElementById("commandHistory"), []);
@@ -505,6 +574,16 @@ export function createDashboardController({
     state.busy = true;
     updateControlAvailability();
     setNotice(documentRef.getElementById("commandMessage"), "", "normal");
+    if (commandType === "FEED_NOW") {
+      setButlerState(
+        documentRef,
+        "working",
+        "Preparing a feeding",
+        state.demo ? "Simulating the feeder routine." : "Sending a signed command to your ESP32.",
+        { feeding: true }
+      );
+      playAquariumMoment(documentRef);
+    }
     try {
       const result = await issueDeviceCommand({
         deviceUid,
@@ -517,13 +596,30 @@ export function createDashboardController({
       if (!isCurrentView(viewEpoch, token, deviceUid)) return result;
       if (!result.cancelled) {
         setNotice(documentRef.getElementById("commandMessage"), `Command ${result.command.id} accepted.`, "normal");
+        if (commandType === "FEED_NOW") {
+          const completed = String(result.command.status).toUpperCase() === "COMPLETED";
+          setButlerState(
+            documentRef,
+            "success",
+            completed ? "Feeding complete" : "Feeding command sent",
+            completed ? "Your aquarium has been cared for." : "Your concierge is waiting for the device result.",
+            { feeding: true }
+          );
+        }
         await refreshCommands();
+      } else if (commandType === "FEED_NOW") {
+        setButlerState(documentRef, "ready", "Standing by", "Feeding was cancelled safely.");
       }
       return result;
     } catch (error) {
       if (!isCurrentView(viewEpoch, token, deviceUid)) return null;
       if (error.status === 401) logout("Your operator session expired. Please sign in again.");
-      else setNotice(documentRef.getElementById("commandMessage"), `Command failed: ${error.message}`, "critical");
+      else {
+        setNotice(documentRef.getElementById("commandMessage"), `Command failed: ${error.message}`, "critical");
+        if (commandType === "FEED_NOW") {
+          setButlerState(documentRef, "error", "Feeding needs attention", error.message);
+        }
+      }
       return null;
     } finally {
       state.busy = false;
@@ -532,6 +628,30 @@ export function createDashboardController({
   }
 
   function bindEvents() {
+    documentRef.getElementById("aquariumPlayButton")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      const video = documentRef.getElementById("aquariumVideo");
+      const showcase = documentRef.getElementById("conciergeShowcase");
+      if (!video || !showcase) return;
+      const shouldPlay = video.paused;
+      if (shouldPlay) {
+        try {
+          await video.play();
+          showcase.dataset.playing = "true";
+        } catch {
+          return;
+        }
+      } else {
+        video.pause();
+        showcase.dataset.playing = "false";
+      }
+      showcase.closest?.(".aquarium-hero")?.setAttribute("data-playing", String(shouldPlay));
+      button.setAttribute("aria-pressed", String(shouldPlay));
+      const label = button.querySelector("span");
+      if (label) label.textContent = shouldPlay ? "Pause aquarium scene" : "Play aquarium scene";
+      const iconPath = button.querySelector("path");
+      if (iconPath) iconPath.setAttribute("d", shouldPlay ? "M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" : "M8 5v14l11-7L8 5Z");
+    });
     documentRef.getElementById("loginForm")?.addEventListener("submit", (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
@@ -557,7 +677,7 @@ export function createDashboardController({
       updateControlAvailability();
       refresh();
     });
-    for (const button of documentRef.querySelectorAll("[data-command]")) {
+    for (const button of documentRef.querySelectorAll("[data-command], [data-scene-command]")) {
       button.addEventListener("click", () => {
         let payload = button.dataset.mode ? { mode: button.dataset.mode } : {};
         if (button.dataset.durationInput) {
@@ -569,7 +689,7 @@ export function createDashboardController({
             return;
           }
         }
-        issueCommand(button.dataset.command, payload);
+        issueCommand(button.dataset.command || button.dataset.sceneCommand, payload);
       });
     }
   }

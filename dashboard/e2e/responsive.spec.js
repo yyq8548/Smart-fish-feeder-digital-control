@@ -1,0 +1,52 @@
+import { expect, test } from "@playwright/test";
+
+const viewports = [
+  { name: "desktop", width: 1440, height: 900 },
+  { name: "mobile", width: 390, height: 844 }
+];
+
+for (const viewport of viewports) {
+  test(`${viewport.name} dashboard layout stays contained`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Feed Smarter. Worry Less." })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Dashboard sections" })).toBeVisible();
+
+    const layout = await page.evaluate(() => {
+      const rectangle = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height
+        };
+      };
+      return {
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        hero: rectangle(".aquarium-hero"),
+        actions: rectangle(".scene-actions"),
+        butler: rectangle(".scene-butler"),
+        navigation: rectangle(".quick-nav"),
+        brokenImages: [...document.images]
+          .filter((image) => !image.complete || image.naturalWidth === 0)
+          .map((image) => image.currentSrc || image.src)
+      };
+    });
+
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
+    expect(layout.brokenImages).toEqual([]);
+    for (const region of [layout.hero, layout.actions, layout.butler, layout.navigation]) {
+      expect(region).not.toBeNull();
+      expect(region.left).toBeGreaterThanOrEqual(0);
+      expect(region.right).toBeLessThanOrEqual(layout.clientWidth);
+      expect(region.width).toBeGreaterThan(0);
+      expect(region.height).toBeGreaterThan(0);
+    }
+  });
+}
