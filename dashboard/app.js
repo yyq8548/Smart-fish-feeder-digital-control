@@ -186,6 +186,63 @@ export async function pairCustomerDevice(deviceUid, pairingCode, token, { fetchI
   });
 }
 
+export async function createFeedingSchedule(deviceUid, schedule, token, { fetchImpl = fetch } = {}) {
+  return requestJson(`/devices/${encodeURIComponent(deviceUid)}/schedules`, {
+    fetchImpl,
+    method: "POST",
+    token,
+    jsonBody: schedule
+  });
+}
+
+export async function updateFeedingSchedule(scheduleId, updates, token, { fetchImpl = fetch } = {}) {
+  return requestJson(`/schedules/${encodeURIComponent(scheduleId)}`, {
+    fetchImpl,
+    method: "PATCH",
+    token,
+    jsonBody: updates
+  });
+}
+
+export async function deleteFeedingSchedule(scheduleId, token, { fetchImpl = fetch } = {}) {
+  return requestJson(`/schedules/${encodeURIComponent(scheduleId)}`, {
+    fetchImpl,
+    method: "DELETE",
+    token
+  });
+}
+
+export function schedulePayloadFromForm(formData) {
+  const name = String(formData.get("name") || "").trim();
+  const timezone = String(formData.get("timezone") || "").trim();
+  const time = String(formData.get("time") || "");
+  const [hourText, minuteText] = time.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const graceMinutes = Number(formData.get("grace_minutes"));
+  const daysOfWeek = formData.getAll("days_of_week").map(Number).sort((left, right) => left - right);
+  if (!name) throw new Error("Enter a schedule name.");
+  if (!timezone) throw new Error("Enter a valid IANA timezone, such as America/New_York.");
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+    throw new Error("Choose a valid feeding time.");
+  }
+  if (daysOfWeek.length === 0 || daysOfWeek.some((day) => !Number.isInteger(day) || day < 0 || day > 6)) {
+    throw new Error("Choose at least one day of the week.");
+  }
+  if (!Number.isInteger(graceMinutes) || graceMinutes < 1 || graceMinutes > 180) {
+    throw new Error("Grace period must be between 1 and 180 minutes.");
+  }
+  return {
+    name,
+    hour,
+    minute,
+    days_of_week: [...new Set(daysOfWeek)],
+    timezone,
+    grace_minutes: graceMinutes,
+    enabled: formData.get("enabled") === "on"
+  };
+}
+
 export function clearOperatorSession(storage = defaultStorage()) {
   storage?.removeItem(TOKEN_STORAGE_KEY);
 }
@@ -243,6 +300,86 @@ export function renderNextSchedule(documentRef, schedules) {
   if (timeElement) timeElement.textContent = formatScheduleTime(schedule);
   if (nameElement) nameElement.textContent = `${schedule.name} · ${schedule.timezone}`;
   return schedule;
+}
+
+const SCHEDULE_DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function scheduleDays(schedule) {
+  const values = Array.isArray(schedule.days_of_week)
+    ? schedule.days_of_week
+    : String(schedule.days_of_week || "").split(",").filter(Boolean).map(Number);
+  return values.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
+}
+
+function formatScheduleDays(schedule) {
+  const days = scheduleDays(schedule);
+  if (days.length === 7) return "Every day";
+  if (days.join(",") === "0,1,2,3,4") return "Weekdays";
+  if (days.join(",") === "5,6") return "Weekends";
+  return days.map((day) => SCHEDULE_DAY_NAMES[day]).join(", ") || "No repeat days";
+}
+
+export function renderScheduleManager(documentRef, schedules, { canManage = false, emptyMessage = null } = {}) {
+  const container = documentRef.getElementById("scheduleList");
+  const count = documentRef.getElementById("scheduleCount");
+  if (count) count.textContent = schedules.length === 1 ? "1 schedule" : `${schedules.length} schedules`;
+  if (!container) return;
+  container.replaceChildren();
+  if (schedules.length === 0) {
+    const empty = documentRef.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = emptyMessage || "No feeding schedules yet. Add the first automatic feeding time.";
+    container.appendChild(empty);
+    return;
+  }
+  const ordered = [...schedules].sort((left, right) =>
+    Number(right.enabled) - Number(left.enabled) || left.hour - right.hour || left.minute - right.minute
+  );
+  for (const schedule of ordered) {
+    const item = documentRef.createElement("article");
+    item.className = "schedule-item";
+    item.dataset.enabled = String(Boolean(schedule.enabled));
+
+    const main = documentRef.createElement("div");
+    main.className = "schedule-item-main";
+    const title = documentRef.createElement("div");
+    title.className = "schedule-item-title";
+    const status = documentRef.createElement("span");
+    status.className = "schedule-status-dot";
+    status.setAttribute("aria-hidden", "true");
+    const name = documentRef.createElement("strong");
+    name.textContent = schedule.name;
+    title.append(status, name);
+    const time = documentRef.createElement("span");
+    time.className = "schedule-item-time";
+    time.textContent = formatScheduleTime(schedule);
+    const meta = documentRef.createElement("span");
+    meta.className = "schedule-item-meta";
+    meta.textContent = `${formatScheduleDays(schedule)} · ${schedule.timezone} · ${schedule.grace_minutes} min grace`;
+    main.append(title, time, meta);
+
+    const actions = documentRef.createElement("div");
+    actions.className = "schedule-item-actions";
+    const toggle = documentRef.createElement("button");
+    toggle.type = "button";
+    toggle.className = "schedule-action";
+    toggle.dataset.scheduleAction = "toggle";
+    toggle.dataset.scheduleId = String(schedule.id);
+    toggle.textContent = schedule.enabled ? "Pause" : "Enable";
+    toggle.disabled = !canManage;
+    toggle.setAttribute("aria-label", `${toggle.textContent} ${schedule.name}`);
+    const remove = documentRef.createElement("button");
+    remove.type = "button";
+    remove.className = "schedule-action delete";
+    remove.dataset.scheduleAction = "delete";
+    remove.dataset.scheduleId = String(schedule.id);
+    remove.textContent = "Delete";
+    remove.disabled = !canManage;
+    remove.setAttribute("aria-label", `Delete ${schedule.name}`);
+    actions.append(toggle, remove);
+    item.append(main, actions);
+    container.appendChild(item);
+  }
 }
 
 function newIdempotencyKey(commandType) {
@@ -620,6 +757,8 @@ export function createDashboardController({
     monitoringKey: null,
     monitoringPromise: null,
     scheduleUid: null,
+    schedules: [],
+    scheduleBusy: false,
     lastFeedingAt: null
   };
   const chart = createChart(documentRef, chartFactory);
@@ -727,6 +866,18 @@ export function createDashboardController({
             ? "Demo mode: commands complete in the simulator and never reach physical hardware."
             : "Device is online. Every command requires confirmation.";
     setNotice(documentRef.getElementById("controlState"), message, enabled ? "normal" : "warning");
+    updateScheduleAvailability();
+  }
+
+  function updateScheduleAvailability() {
+    const canManage = Boolean(
+      state.token && state.deviceUid && state.userRole !== "demo" && !state.scheduleBusy
+    );
+    const form = documentRef.getElementById("scheduleForm");
+    for (const control of form?.querySelectorAll("input, button") ?? []) control.disabled = !canManage;
+    for (const button of documentRef.querySelectorAll("[data-schedule-action]")) button.disabled = !canManage;
+    const panel = documentRef.getElementById("schedule");
+    if (panel) panel.dataset.available = String(canManage);
   }
 
   async function refreshCommands() {
@@ -762,7 +913,15 @@ export function createDashboardController({
     const deviceUid = state.deviceUid;
     if (!token || !deviceUid) {
       renderNextSchedule(documentRef, []);
+      state.schedules = [];
+      renderScheduleManager(documentRef, [], {
+        canManage: false,
+        emptyMessage: token
+          ? "Pair or select a feeder to create an automatic feeding schedule."
+          : "Sign in and select a feeder to manage automatic feeding."
+      });
       state.scheduleUid = null;
+      updateScheduleAvailability();
       return [];
     }
     try {
@@ -772,15 +931,116 @@ export function createDashboardController({
       });
       if (!isCurrentView(viewEpoch, token, deviceUid)) return [];
       renderNextSchedule(documentRef, schedules);
+      state.schedules = schedules;
+      renderScheduleManager(documentRef, schedules, {
+        canManage: state.userRole !== "demo",
+        emptyMessage: state.demo
+          ? "The public demo does not create persistent feeding schedules."
+          : null
+      });
       state.scheduleUid = deviceUid;
+      updateScheduleAvailability();
+      if (state.demo) {
+        setNotice(
+          documentRef.getElementById("scheduleMessage"),
+          "Demo mode is read-only for schedules. Sign in with a customer account to manage a physical feeder.",
+          "warning"
+        );
+      }
       return schedules;
-    } catch {
+    } catch (error) {
       if (!isCurrentView(viewEpoch, token, deviceUid)) return [];
       const timeElement = documentRef.getElementById("nextFeedTime");
       const nameElement = documentRef.getElementById("nextFeedName");
       if (timeElement) timeElement.textContent = "Unavailable";
       if (nameElement) nameElement.textContent = "Could not load schedule";
+      state.schedules = [];
+      renderScheduleManager(documentRef, [], { canManage: false, emptyMessage: "Schedules could not be loaded." });
+      setNotice(documentRef.getElementById("scheduleMessage"), `Schedule loading failed: ${error.message}`, "critical");
+      updateScheduleAvailability();
       return [];
+    }
+  }
+
+  async function createSchedule(formData) {
+    if (!state.token || !state.deviceUid || state.userRole === "demo" || state.scheduleBusy) return false;
+    let payload;
+    try {
+      payload = schedulePayloadFromForm(formData);
+    } catch (error) {
+      setNotice(documentRef.getElementById("scheduleMessage"), error.message, "critical");
+      return false;
+    }
+    const deviceUid = state.deviceUid;
+    const token = state.token;
+    state.scheduleBusy = true;
+    updateScheduleAvailability();
+    setNotice(documentRef.getElementById("scheduleMessage"), "Saving feeding schedule…");
+    try {
+      await createFeedingSchedule(deviceUid, payload, token, { fetchImpl });
+      if (token !== state.token || deviceUid !== state.deviceUid) return false;
+      state.scheduleUid = null;
+      await refreshSchedule();
+      setNotice(documentRef.getElementById("scheduleMessage"), "Feeding schedule added.", "normal");
+      return true;
+    } catch (error) {
+      if (error.status === 401) logout("Your session expired. Please sign in again.");
+      else setNotice(documentRef.getElementById("scheduleMessage"), `Schedule could not be saved: ${error.message}`, "critical");
+      return false;
+    } finally {
+      state.scheduleBusy = false;
+      updateScheduleAvailability();
+    }
+  }
+
+  async function toggleSchedule(scheduleId) {
+    const schedule = state.schedules.find((item) => item.id === scheduleId);
+    if (!schedule || !state.token || state.userRole === "demo" || state.scheduleBusy) return false;
+    state.scheduleBusy = true;
+    updateScheduleAvailability();
+    setNotice(
+      documentRef.getElementById("scheduleMessage"),
+      schedule.enabled ? "Pausing schedule…" : "Enabling schedule…"
+    );
+    try {
+      await updateFeedingSchedule(scheduleId, { enabled: !schedule.enabled }, state.token, { fetchImpl });
+      await refreshSchedule();
+      setNotice(
+        documentRef.getElementById("scheduleMessage"),
+        schedule.enabled ? "Feeding schedule paused." : "Feeding schedule enabled.",
+        "normal"
+      );
+      return true;
+    } catch (error) {
+      if (error.status === 401) logout("Your session expired. Please sign in again.");
+      else setNotice(documentRef.getElementById("scheduleMessage"), `Schedule update failed: ${error.message}`, "critical");
+      return false;
+    } finally {
+      state.scheduleBusy = false;
+      updateScheduleAvailability();
+    }
+  }
+
+  async function removeSchedule(scheduleId) {
+    const schedule = state.schedules.find((item) => item.id === scheduleId);
+    if (!schedule || !state.token || state.userRole === "demo" || state.scheduleBusy) return false;
+    const windowRef = documentRef.defaultView;
+    if (!windowRef?.confirm?.(`Delete the feeding schedule “${schedule.name}”?`)) return false;
+    state.scheduleBusy = true;
+    updateScheduleAvailability();
+    setNotice(documentRef.getElementById("scheduleMessage"), "Deleting schedule…");
+    try {
+      await deleteFeedingSchedule(scheduleId, state.token, { fetchImpl });
+      await refreshSchedule();
+      setNotice(documentRef.getElementById("scheduleMessage"), "Feeding schedule deleted.", "normal");
+      return true;
+    } catch (error) {
+      if (error.status === 401) logout("Your session expired. Please sign in again.");
+      else setNotice(documentRef.getElementById("scheduleMessage"), `Schedule could not be deleted: ${error.message}`, "critical");
+      return false;
+    } finally {
+      state.scheduleBusy = false;
+      updateScheduleAvailability();
     }
   }
 
@@ -799,6 +1059,11 @@ export function createDashboardController({
       setHealth(documentRef.getElementById("systemHealth"), "unknown", "Sign In Required");
       setNotice(documentRef.getElementById("monitoringMessage"), "Authenticate to view device telemetry and alerts.");
       renderAlerts(documentRef.getElementById("alertLog"), []);
+      state.schedules = [];
+      renderScheduleManager(documentRef, [], {
+        canManage: false,
+        emptyMessage: "Sign in and select a feeder to manage automatic feeding."
+      });
       updateControlAvailability();
       return null;
     }
@@ -815,6 +1080,11 @@ export function createDashboardController({
       renderAlerts(documentRef.getElementById("alertLog"), []);
       renderCommands(documentRef.getElementById("commandHistory"), []);
       renderNextSchedule(documentRef, []);
+      state.schedules = [];
+      renderScheduleManager(documentRef, [], {
+        canManage: false,
+        emptyMessage: "Pair or select a feeder to create an automatic feeding schedule."
+      });
       updateControlAvailability();
       return null;
     }
@@ -1061,6 +1331,8 @@ export function createDashboardController({
     state.online = false;
     state.demo = false;
     state.scheduleUid = null;
+    state.schedules = [];
+    state.scheduleBusy = false;
     state.lastFeedingAt = null;
     clearOperatorSession(storage);
     setAuthenticated(false);
@@ -1075,6 +1347,11 @@ export function createDashboardController({
     setNotice(documentRef.getElementById("monitoringMessage"), "Authenticate to view device telemetry and alerts.");
     renderAlerts(documentRef.getElementById("alertLog"), []);
     renderCommands(documentRef.getElementById("commandHistory"), []);
+    renderScheduleManager(documentRef, [], {
+      canManage: false,
+      emptyMessage: "Sign in and select a feeder to manage automatic feeding."
+    });
+    setNotice(documentRef.getElementById("scheduleMessage"), "");
     setNotice(documentRef.getElementById("loginMessage"), message);
     updateControlAvailability();
   }
@@ -1239,6 +1516,25 @@ export function createDashboardController({
       });
     });
     documentRef.getElementById("unpairDeviceButton")?.addEventListener("click", () => unpairSelectedDevice());
+    documentRef.getElementById("scheduleForm")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const formElement = event.currentTarget;
+      createSchedule(new FormData(formElement)).then((created) => {
+        if (!created) return;
+        const timezone = formElement.elements.namedItem("timezone")?.value || "UTC";
+        formElement.reset();
+        const timezoneInput = formElement.elements.namedItem("timezone");
+        if (timezoneInput) timezoneInput.value = timezone;
+      });
+    });
+    documentRef.getElementById("scheduleList")?.addEventListener("click", (event) => {
+      const button = event.target.closest?.("[data-schedule-action]");
+      if (!button || button.disabled) return;
+      const scheduleId = Number(button.dataset.scheduleId);
+      if (!Number.isInteger(scheduleId)) return;
+      if (button.dataset.scheduleAction === "toggle") toggleSchedule(scheduleId);
+      if (button.dataset.scheduleAction === "delete") removeSchedule(scheduleId);
+    });
     documentRef.getElementById("deviceSelect")?.addEventListener("change", (event) => {
       invalidateView();
       stopFeedingAnimation();
@@ -1248,11 +1544,14 @@ export function createDashboardController({
       state.deviceId = selected?.dataset.deviceId ? Number(selected.dataset.deviceId) : null;
       state.online = false;
       state.scheduleUid = null;
+      state.schedules = [];
       state.lastFeedingAt = null;
       resetTelemetry(documentRef);
       clearChart(chart);
       renderAlerts(documentRef.getElementById("alertLog"), []);
       renderCommands(documentRef.getElementById("commandHistory"), []);
+      renderScheduleManager(documentRef, [], { canManage: false, emptyMessage: "Loading schedules…" });
+      setNotice(documentRef.getElementById("scheduleMessage"), "");
       updateControlAvailability();
       refresh();
     });
@@ -1275,6 +1574,10 @@ export function createDashboardController({
 
   async function initialize() {
     initializePresentation(documentRef, documentRef.defaultView ?? globalThis);
+    const timezoneInput = documentRef.querySelector("#scheduleForm [name='timezone']");
+    if (timezoneInput) {
+      timezoneInput.value = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    }
     bindEvents();
     setAuthenticated(false);
     updateControlAvailability();
@@ -1286,6 +1589,7 @@ export function createDashboardController({
 
   return {
     confirmPasswordReset,
+    createSchedule,
     initialize,
     issueCommand,
     loadOperator,
@@ -1294,9 +1598,12 @@ export function createDashboardController({
     pairDevice,
     refresh,
     refreshCommands,
+    refreshSchedule,
     register,
     requestPasswordReset,
     state,
+    toggleSchedule,
+    removeSchedule,
     unpairSelectedDevice
   };
 }

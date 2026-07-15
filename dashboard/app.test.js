@@ -11,6 +11,8 @@ const {
   authenticateOperator,
   clearOperatorSession,
   confirmCustomerPasswordReset,
+  deleteFeedingSchedule,
+  createFeedingSchedule,
   createCommandDialog,
   createDashboardController,
   formatTime,
@@ -23,11 +25,14 @@ const {
   renderAlerts,
   renderCommands,
   renderNextSchedule,
+  renderScheduleManager,
   registerCustomer,
   requestJson,
   requestCustomerPasswordReset,
+  schedulePayloadFromForm,
   setHealth,
-  startDashboard
+  startDashboard,
+  updateFeedingSchedule
 } = await import("./app.js");
 
 function response(payload, status = 200) {
@@ -73,6 +78,20 @@ function installDom() {
     </section>
     <p id="loginMessage" hidden></p><p id="controlState"></p><p id="commandMessage" hidden></p>
     <strong id="nextFeedTime"></strong><small id="nextFeedName"></small>
+    <section id="schedule"><span id="scheduleCount"></span>
+      <form id="scheduleForm">
+        <input name="name" value="Daily feeding">
+        <input name="time" type="time" value="09:00">
+        <input name="timezone" value="UTC">
+        <input name="grace_minutes" type="number" value="10">
+        <input name="days_of_week" type="checkbox" value="0" checked>
+        <input name="days_of_week" type="checkbox" value="2" checked>
+        <input name="enabled" type="checkbox" checked>
+        <button type="submit" disabled>Add schedule</button>
+        <p id="scheduleMessage" hidden></p>
+      </form>
+      <div id="scheduleList"></div>
+    </section>
     <input id="feedDuration" value="1000" data-duration-control disabled>
     <button type="button" data-command="FEED_NOW" data-duration-input="feedDuration" disabled>Feed</button>
     <input id="cleanDuration" value="1000" data-duration-control disabled>
@@ -145,6 +164,37 @@ describe("rendering helpers", () => {
     expect(container.textContent).toContain("expires");
     expect(container.querySelector("[data-status='completed']")).not.toBeNull();
     expect(() => renderCommands(null, [])).not.toThrow();
+  });
+
+  it("validates and renders recurring feeding schedules", () => {
+    const form = document.getElementById("scheduleForm");
+    const payload = schedulePayloadFromForm(new FormData(form));
+    expect(payload).toEqual({
+      name: "Daily feeding",
+      hour: 9,
+      minute: 0,
+      days_of_week: [0, 2],
+      timezone: "UTC",
+      grace_minutes: 10,
+      enabled: true
+    });
+    for (const checkbox of form.querySelectorAll("[name='days_of_week']")) checkbox.checked = false;
+    expect(() => schedulePayloadFromForm(new FormData(form))).toThrow("Choose at least one day");
+
+    renderScheduleManager(document, [{
+      id: 4,
+      name: "<img src=x>",
+      hour: 18,
+      minute: 5,
+      days_of_week: "0,1,2,3,4",
+      timezone: "America/New_York",
+      grace_minutes: 10,
+      enabled: true
+    }], { canManage: true });
+    expect(document.getElementById("scheduleCount").textContent).toBe("1 schedule");
+    expect(document.getElementById("scheduleList").textContent).toContain("Weekdays");
+    expect(document.getElementById("scheduleList").querySelector("img")).toBeNull();
+    expect(document.querySelector("[data-schedule-action='toggle']").disabled).toBe(false);
   });
 
   it("populates and selects devices", () => {
@@ -256,6 +306,31 @@ describe("authenticated API client", () => {
       password: "SecureFeeder42"
     });
     expect(fetchImpl.mock.calls[3][1].headers.Authorization).toBe("Bearer customer-jwt");
+  });
+
+  it("calls the authenticated feeding schedule contracts", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(response({ id: 7 }, 201))
+      .mockResolvedValueOnce(response({ id: 7, enabled: false }))
+      .mockResolvedValueOnce(response(null, 204));
+    const schedule = {
+      name: "Morning",
+      hour: 8,
+      minute: 30,
+      days_of_week: [0, 1, 2, 3, 4],
+      timezone: "America/New_York",
+      grace_minutes: 10,
+      enabled: true
+    };
+    await createFeedingSchedule("feeder/7", schedule, "jwt", { fetchImpl });
+    await updateFeedingSchedule(7, { enabled: false }, "jwt", { fetchImpl });
+    await deleteFeedingSchedule(7, "jwt", { fetchImpl });
+    expect(fetchImpl.mock.calls.map((call) => [call[0], call[1].method])).toEqual([
+      [expect.stringContaining("/devices/feeder%2F7/schedules"), "POST"],
+      [expect.stringContaining("/schedules/7"), "PATCH"],
+      [expect.stringContaining("/schedules/7"), "DELETE"]
+    ]);
+    expect(fetchImpl.mock.calls.every((call) => call[1].headers.Authorization === "Bearer jwt")).toBe(true);
   });
 
   it("requires confirmation and posts a contract-compatible command", async () => {
@@ -383,6 +458,7 @@ describe("operator controller", () => {
         id: nextCommandId++, command_type: "FEED_NOW", status: "PENDING", created_at: "2026-01-01T12:00:00Z"
       }, 201);
       if (url.includes("/commands")) return response([]);
+      if (url.includes("/schedules")) return response([]);
       throw new Error(`Unexpected request ${method} ${url}`);
     });
   }
@@ -513,6 +589,50 @@ describe("operator controller", () => {
     expect(await controller.unpairSelectedDevice()).toBe(true);
     expect(controller.state.deviceUid).toBeNull();
     expect(document.getElementById("pairingMessage").textContent).toContain("NEW-PAIR-CODE");
+  });
+
+  it("lets an account create, pause, and delete an automatic feeding schedule", async () => {
+    let schedules = [];
+    const baseApi = controllerApi();
+    const fetchImpl = vi.fn(async (url, options) => {
+      const method = options.method || "GET";
+      if (url.includes("/devices/feeder-001/schedules") && method === "GET") return response(schedules);
+      if (url.includes("/devices/feeder-001/schedules") && method === "POST") {
+        const body = JSON.parse(options.body);
+        schedules = [{ id: 1, device_id: 1, ...body, days_of_week: body.days_of_week.join(",") }];
+        return response(schedules[0], 201);
+      }
+      if (url.includes("/schedules/1") && method === "PATCH") {
+        schedules = [{ ...schedules[0], ...JSON.parse(options.body) }];
+        return response(schedules[0]);
+      }
+      if (url.includes("/schedules/1") && method === "DELETE") {
+        schedules = [];
+        return response(null, 204);
+      }
+      return baseApi(url, options);
+    });
+    const controller = createDashboardController({
+      documentRef: document,
+      fetchImpl,
+      storage: sessionStorage,
+      chartFactory: null
+    });
+    await controller.initialize();
+    await controller.login("alice", "password");
+
+    const form = document.getElementById("scheduleForm");
+    form.elements.namedItem("timezone").value = "America/New_York";
+    expect(await controller.createSchedule(new FormData(form))).toBe(true);
+    expect(controller.state.schedules).toHaveLength(1);
+    expect(document.getElementById("scheduleList").textContent).toContain("Daily feeding");
+    expect(await controller.toggleSchedule(1)).toBe(true);
+    expect(controller.state.schedules[0].enabled).toBe(false);
+
+    window.confirm = vi.fn().mockReturnValue(true);
+    expect(await controller.removeSchedule(1)).toBe(true);
+    expect(controller.state.schedules).toEqual([]);
+    expect(document.getElementById("scheduleMessage").textContent).toContain("deleted");
   });
 
   it("keeps the command dialog open when the device rejects a command", async () => {
