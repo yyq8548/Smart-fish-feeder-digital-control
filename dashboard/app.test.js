@@ -427,6 +427,31 @@ describe("operator controller", () => {
     expect(document.getElementById("butlerStatus").textContent).toBe("Standing by");
   });
 
+  it("stops the feeding animation after the configured feeding duration", async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = createDashboardController({
+        documentRef: document,
+        fetchImpl: controllerApi(),
+        storage: sessionStorage,
+        confirmImpl: vi.fn().mockReturnValue(true),
+        chartFactory: null
+      });
+
+      await controller.initialize();
+      await controller.login("alice", "password");
+      await controller.issueCommand("FEED_NOW", { duration_ms: 750 });
+
+      expect(document.getElementById("conciergeShowcase").dataset.feeding).toBe("true");
+      await vi.advanceTimersByTimeAsync(749);
+      expect(document.getElementById("conciergeShowcase").dataset.feeding).toBe("true");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(document.getElementById("conciergeShowcase").dataset.feeding).toBe("false");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("offers one-click demo access and labels simulated controls", async () => {
     const fetchImpl = vi.fn(async (url, options) => {
       const method = options.method || "GET";
