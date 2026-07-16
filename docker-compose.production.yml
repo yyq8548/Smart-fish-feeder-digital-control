@@ -59,6 +59,11 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # Docker can inherit systemd-resolved's loopback stub (127.0.0.53), which
+    # is unreachable from containers and breaks outbound SMTP hostname lookup.
+    dns:
+      - ${CONTAINER_DNS_PRIMARY:-1.1.1.1}
+      - ${CONTAINER_DNS_SECONDARY:-8.8.8.8}
     environment:
       FISH_FEEDER_DATABASE_URL: sqlite:////app/data/fish_feeder.db
       FISH_FEEDER_BOOTSTRAP_DEVICE_UID: ${DEVICE_UID:?Set DEVICE_UID in .env.production}
