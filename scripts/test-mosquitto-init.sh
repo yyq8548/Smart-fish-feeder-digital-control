@@ -22,4 +22,4 @@ docker run --rm \
   -e FISH_FEEDER_JWT_SECRET=jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj \
   -e MQTT_SHARED_SECRET=ssssssssssssssssssssssssssssssssssssssss \
   eclipse-mosquitto:2.1.2-alpine \
-  -c '/init/init-passwords.sh && grep -q "^feeder-test:" /mosquitto/secrets/passwords && grep -q "^feeder-extra:" /mosquitto/secrets/passwords'
+  -c 'sh /init/init-passwords.sh && grep -q "^feeder-test:" /mosquitto/secrets/passwords && grep -q "^feeder-extra:" /mosquitto/secrets/passwords'
