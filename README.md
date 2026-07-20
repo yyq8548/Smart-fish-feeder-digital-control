@@ -10,15 +10,15 @@
 
 **Feed smarter. Worry less.**
 
-This project solves a practical problem for aquarium hobbyists who need to keep liquid food cool, deliver consistent meals while away, and prevent food from remaining in the pump line. A physical ESP32 feeder reports live telemetry to the cloud, accepts authenticated commands, dispenses food, reverses the pump to clean the tube, and reports the final result back to the website.
+I built this system after running into a problem that other reef hobbyists had too: liquid food needs to stay cool, feedings still need to happen when nobody is home, and food should not sit in the pump line afterward. The ESP32 feeder sends live readings to the cloud, receives authenticated commands, dispenses food, reverses the pump to clean the tube, and reports the result back to the website.
 
-The repository contains the complete system: responsive web dashboard, FastAPI control service, persistent database, authenticated MQTT/TLS broker, ESP32 firmware, automated tests, and a Docker-based production deployment.
+This repository holds the web dashboard, FastAPI service, database, MQTT/TLS broker, ESP32 firmware, tests, and Docker production configuration used by the working system.
 
 | Monitor | Automate | Control | Verify |
 | --- | --- | --- | --- |
 | Reservoir temperature, pump state, cooling output, heartbeat | Timezone-aware recurring feeding schedules | Feed now, clean pump, automatic or forced cooling | Signed device results, command history, alerts, and audit records |
 
-**Quick links:** [Live dashboard](https://feeder.smartfishfeeder.org) · [Physical demo](https://youtu.be/YY09H4AA6kg) · [User manual](#website-user-manual) · [Command flow](#how-a-command-reaches-the-feeder) · [Production deployment](#production-deployment)
+**Quick links:** [Live dashboard](https://feeder.smartfishfeeder.org/) · [Physical demo](https://youtu.be/YY09H4AA6kg) · [User manual](https://github.com/yyq8548/Smart-fish-feeder-digital-control#website-user-manual) · [Technology](https://github.com/yyq8548/Smart-fish-feeder-digital-control#technology-used) · [Command flow](https://github.com/yyq8548/Smart-fish-feeder-digital-control#how-a-command-reaches-the-feeder) · [Production deployment](https://github.com/yyq8548/Smart-fish-feeder-digital-control#production-deployment)
 
 ## Live system
 
@@ -28,14 +28,14 @@ The repository contains the complete system: responsive web dashboard, FastAPI c
 
 [![Watch the physical smart fish feeder demo](https://img.youtube.com/vi/YY09H4AA6kg/maxresdefault.jpg)](https://youtu.be/YY09H4AA6kg)
 
-The website includes a public, isolated demo with realistic sample telemetry and simulated device controls:
+The public demo uses sample telemetry and simulated controls. It is isolated from production devices:
 
 ```text
 username: demo
 password: smartfishdemo
 ```
 
-Select **Try demo** on the sign-in panel for one-click access. The demo account cannot view production devices or telemetry, provision hardware, rotate credentials, modify schedules, acknowledge production alerts, run reliability jobs, or send commands to the physical ESP32. Production usernames, passwords, device credentials, and signing secrets remain private.
+Select **Try demo** on the sign-in panel for one-click access. The demo account cannot view production telemetry, provision hardware, change schedules, acknowledge production alerts, run reliability jobs, or send commands to a physical ESP32. It also has no access to production usernames, passwords, device credentials, or signing secrets.
 
 ## Product tour
 
@@ -43,25 +43,25 @@ Select **Try demo** on the sign-in panel for one-click access. The demo account 
 
 [![Smart Fish Feeder landing screen and live aquarium control surface](docs/images/dashboard-landing.png)](https://feeder.smartfishfeeder.org)
 
-The landing experience connects the aquarium scene to the operational dashboard while keeping sign-in state, device health, and the next feeding visible.
+The landing page keeps the aquarium in view while showing sign-in state, device health, and the next scheduled feeding.
 
 ### Live telemetry and temperature history
 
 ![Feeder status cards and reservoir temperature history](docs/images/dashboard-telemetry.png)
 
-The control board refreshes device telemetry every two seconds and presents reservoir temperature, cooling output, pump state, last heartbeat, and ordered temperature history at a glance.
+The control board refreshes every two seconds. It shows reservoir temperature, cooling output, pump state, the last heartbeat, and an ordered temperature history.
 
 ### Recurring feeding schedules
 
 ![Timezone-aware recurring feeding schedule editor](docs/images/dashboard-schedule.png)
 
-Authenticated customers can create recurring schedules for selected weekdays, choose the feeder's timezone and grace period, and pause or delete saved schedules. The public demo presents this workflow in read-only mode.
+Customers can choose feeding days, a local time, and a grace period, then pause or delete the saved schedule. The public demo shows the same screen in read-only mode.
 
 ### Device controls, results, and alerts
 
 ![Physical device commands, completed results, and recent alerts](docs/images/dashboard-controls.png)
 
-Manual commands require confirmation. Every request receives a durable lifecycle record, and the dashboard separates pending work from signed completion results returned by the ESP32.
+Manual commands require confirmation. The database records each stage of the request, and the dashboard distinguishes pending commands from signed completion results returned by the ESP32.
 
 
 ## Website user manual
@@ -73,7 +73,9 @@ Manual commands require confirmation. Every request receives a durable lifecycle
 3. Select **Scan setup QR**, choose a photo of the feeder label, or enter the device UID and one-time proof-of-possession manually.
 4. Confirm that the feeder appears under **Selected device**. Until a feeder is paired, the account stays empty and physical controls remain disabled.
 
-Each customer can see and control only devices claimed by their account. A claim expires and is consumed atomically, so the same QR cannot be reused. **Create transfer link** lets another verified customer take ownership without disconnecting the feeder; the current owner can cancel an unused link. **Remove selected feeder from this account** releases it immediately and returns a new expiring proof. The **Forgot password?** flow sends a single-use reset link without revealing whether an email address is registered.
+A customer can see and control only the devices claimed by that account. The claim expires and is consumed atomically, so the same QR cannot be reused.
+
+Use **Create transfer link** when another verified customer needs to take ownership without disconnecting the feeder. The current owner can cancel a link that has not been used. **Remove selected feeder from this account** releases the feeder and returns a new expiring proof. **Forgot password?** sends a single-use reset link without revealing whether the email address is registered.
 
 ### 1. Sign in
 
@@ -112,7 +114,7 @@ The **Temperature History** chart shows recent ordered telemetry. An offline ban
 5. Set a grace period between `1` and `180` minutes.
 6. Keep **Start this schedule immediately** selected, then choose **Add schedule**.
 
-Saved schedules can be paused, re-enabled, or deleted without changing other feeder settings. Schedules belong to the selected physical feeder, so verify the device before saving. The public demo is intentionally read-only and does not create persistent schedules.
+Saved schedules can be paused, re-enabled, or deleted without changing other feeder settings. Schedules belong to the selected physical feeder, so verify the device before saving. The public demo is read-only and does not create persistent schedules.
 
 ### 5. Feed now
 
@@ -167,6 +169,16 @@ The **Recent alerts** panel displays temperature, sensor, pump, offline, and mis
 
 Select **Sign out** when finished, especially on a shared computer. Closing the browser tab also removes the in-tab session token.
 
+## Technology used
+
+| Layer | Technology | What it does |
+| --- | --- | --- |
+| Physical device | ESP32, Arduino, DS18B20, NVS | Reads temperature, drives the pump and cooling output, and blocks command replays after a reboot |
+| Messaging | MQTT, Mosquitto, TLS 1.2+, HMAC-SHA256 | Moves signed telemetry, commands, and results between each feeder and the cloud |
+| Backend | Python, FastAPI, SQLAlchemy, Alembic, SQLite | Handles accounts, device ownership, schedules, alerts, command state, and persistent data |
+| Dashboard | HTML, CSS, JavaScript, Chart.js | Shows live conditions and lets an authenticated user schedule or operate a feeder |
+| Delivery and testing | Docker Compose, Traefik, GitHub Actions, Pytest, Vitest, Wokwi | Runs the production stack and checks the API, browser, firmware, containers, and virtual hardware |
+
 ## What the website controls
 
 | Dashboard action | Cloud command | ESP32 behavior | Expected result |
@@ -178,7 +190,7 @@ Select **Sign out** when finished, especially on a shared computer. Closing the 
 | Force cooling on | `SET_COOLING: FORCED_ON` | Cooling driver enabled | Output enabled |
 | Force cooling off | `SET_COOLING: FORCED_OFF` | Cooling driver disabled | Output disabled |
 
-The backend also supports missed-feeding detection, alert acknowledgement, credential rotation, and device provisioning through its authenticated API.
+The authenticated API also handles missed feedings, alert acknowledgement, credential rotation, and device provisioning.
 
 ### What the public demo includes
 
@@ -191,7 +203,7 @@ The backend also supports missed-feeding detection, alert acknowledgement, crede
 | Interactive controls | Submit feed, clean, and cooling commands and immediately see a simulated `COMPLETED` result |
 | Schedule preview | View the complete scheduling interface without creating persistent production schedules |
 
-The public demo is deliberately separated from the physical control path. Its commands are held only in server memory, never written to the production command database, and never published to the MQTT broker. Demo sessions cannot discover real device identifiers or data: production-device reads return `404`, and production mutations return `403`. Synthetic data is regenerated and interactive demo history resets whenever the backend restarts.
+The public demo never enters the physical control path. Demo commands stay in server memory; they are not written to the production command database or published to MQTT. A demo session cannot discover real device identifiers or data. Production reads return `404`, and production changes return `403`. The backend regenerates the sample data and clears interactive demo history whenever it restarts.
 
 > **Demo safety:** A successful demo command proves the website workflow, not that a physical feeder moved. Only a private operator account can issue durable commands to an authenticated ESP32.
 
@@ -222,7 +234,7 @@ python scripts/manufacture_device.py `
 Remove-Item Env:FISH_FEEDER_ADMIN_PASSWORD
 ```
 
-In a non-interactive shell, set `FISH_FEEDER_ADMIN_PASSWORD` to the plaintext value only for the lifetime of the process. The command never accepts the password as an argument. It creates a printable claim label and QR, a protected device-secret file, a generated firmware header, and server-registration snippets. The QR contains only the expiring one-time claim URL; it does not contain the API key, MQTT password, or HMAC secret. Keep the remaining bundle private and delete temporary plaintext copies after commissioning.
+In a non-interactive shell, set `FISH_FEEDER_ADMIN_PASSWORD` to the plaintext value only for the lifetime of the process. The command does not accept the password as an argument. It creates a printable claim label and QR, a protected device-secret file, a firmware header, and server-registration snippets. The QR contains only the expiring one-time claim URL. It does not contain the API key, MQTT password, or HMAC secret. Keep the rest of the bundle private and delete temporary plaintext copies after commissioning.
 
 1. Copy `firmware/esp32_mqtt/feeder_secrets.example.h` to `firmware/esp32_mqtt/feeder_secrets.h`.
 2. For self-service setup, leave the Wi-Fi values empty and configure the generated per-device SoftAP password. The customer enters home Wi-Fi through the feeder's local setup page.
@@ -290,7 +302,7 @@ Software safeguards do not replace fuses, isolation, current limits, electrical 
 
 ## Production deployment
 
-The production profile exposes only HTTPS and authenticated MQTT/TLS. The backend, dashboard, bridge, database, and plaintext broker listener remain on private Docker networks.
+The production profile exposes only HTTPS and authenticated MQTT/TLS. Docker keeps the backend, dashboard, bridge, database, and plaintext broker listener on private networks.
 
 ```bash
 cp .env.production.example .env.production
@@ -307,7 +319,7 @@ docker compose \
   up -d --build
 ```
 
-Replace every placeholder with a unique high-entropy value, configure separate dashboard and MQTT DNS records, and follow the [single-VPS deployment guide](docs/cloud_deployment.md).
+Replace every placeholder with a unique, high-entropy value. Configure separate DNS records for the dashboard and MQTT broker, then follow the [single-VPS deployment guide](docs/cloud_deployment.md).
 
 ## Security and reliability
 
@@ -326,7 +338,7 @@ Replace every placeholder with a unique high-entropy value, configure separate d
 
 ## Automated verification
 
-GitHub Actions runs the following on every pull request:
+Every pull request runs the following GitHub Actions checks:
 
 - Ruff formatting and linting
 - Strict mypy type checking
