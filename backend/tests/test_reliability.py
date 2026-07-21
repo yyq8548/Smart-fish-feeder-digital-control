@@ -32,7 +32,7 @@ def test_reliability_scan_endpoint_requires_operator_and_is_idempotent(  # type:
 
 
 def test_reliability_scan_creates_missed_feeding_and_offline_alerts(client) -> None:  # type: ignore[no-untyped-def]
-    now = datetime.now(UTC)
+    now = datetime(2026, 7, 15, 12, 0, tzinfo=UTC)
     with SessionLocal() as db:
         device = db.scalar(select(Device).where(Device.device_uid == "feeder-001"))
         assert device is not None
